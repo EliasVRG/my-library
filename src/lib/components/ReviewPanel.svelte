@@ -1,13 +1,21 @@
 <script lang="ts">
-  import { REVIEW_FIELDS, REVIEW_LABEL, type Book, type ReviewField, type Status } from "../../../shared/model";
   import { untrack } from "svelte";
+  import { REVIEW_FIELDS, pdfState, type Book, type ReviewField, type Status } from "../../../shared/model";
   import { app } from "../app.svelte";
+  import { formatBytes } from "../pdf/files";
   import type { Saver } from "../saver.svelte";
 
-  let { book, saver, ondeleted }: { book: Book; saver: Saver; ondeleted: () => void } = $props();
+  let { book, saver, ondeleted, onattach }: { book: Book; saver: Saver; ondeleted: () => void; onattach: () => void } =
+    $props();
 
-  const HINT: Partial<Record<ReviewField, string>> = {
-    outro_lado: "O melhor contra-argumento que alguém de outra corrente daria.",
+  // Rótulos curtos da tela; o Markdown exportado continua com os rótulos completos (REVIEW_LABEL).
+  const FIELDS: Record<ReviewField, { label: string; placeholder: string }> = {
+    resumo: { label: "Resumo", placeholder: "O livro em poucas linhas" },
+    argumentos: { label: "Argumentos do autor", placeholder: "As ideias centrais" },
+    concordo: { label: "Onde concordo", placeholder: "O que convence" },
+    discordo: { label: "Onde discordo", placeholder: "O que não convence" },
+    outro_lado: { label: "Como o outro lado responderia", placeholder: "O melhor contra-argumento de outra corrente" },
+    notas: { label: "Notas e citações", placeholder: "Trechos e ideias soltas" },
   };
 
   // A mesa é recriada para cada livro, então o id é fixo durante a vida deste painel.
@@ -19,7 +27,13 @@
   let confirming = $state(false);
   let deleting = $state(false);
   let deleteError = $state("");
+  let offlineBusy = $state(false);
+  let offlineMsg = $state("");
   const areas: Partial<Record<ReviewField | "category", HTMLElement>> = $state({});
+
+  const pdf = $derived(pdfState(book));
+  const offlineSize = $derived(app.offline.get(id));
+  const upload = $derived(app.sync.uploads.get(id));
 
   // Mudanças vindas de outro aparelho entram no campo, a menos que ele esteja sendo editado aqui.
   $effect(() => {
@@ -34,6 +48,18 @@
     const c = remoteCategory;
     if (!saver.has("category") && document.activeElement !== areas.category) category = c;
   });
+
+  /** Textarea que cresce com o texto. Navegadores com `field-sizing: content` fazem isso só com CSS. */
+  const nativeSizing = typeof CSS !== "undefined" && CSS.supports?.("field-sizing", "content");
+  function grow(el: HTMLTextAreaElement, _value: string) {
+    const fit = () => {
+      if (nativeSizing) return;
+      el.style.height = "auto";
+      el.style.height = `${el.scrollHeight}px`;
+    };
+    fit();
+    return { update: fit };
+  }
 
   function edit(f: ReviewField, value: string) {
     draft[f] = value;
@@ -51,6 +77,23 @@
 
   function rate(n: number) {
     void saver.now(() => app.store.updateBook(id, { rating: book.rating === n ? 0 : n }));
+  }
+
+  async function toggleOffline() {
+    offlineBusy = true;
+    offlineMsg = "";
+    try {
+      if (offlineSize !== undefined) {
+        if (!(await app.files.release(id))) offlineMsg = "Este PDF ainda não foi enviado; não dá para liberar agora.";
+      } else {
+        await app.files.download(book);
+        void app.ensurePersisted();
+      }
+    } catch (e) {
+      offlineMsg = e instanceof Error ? e.message : "Não foi possível baixar.";
+    } finally {
+      offlineBusy = false;
+    }
   }
 
   async function remove() {
@@ -93,7 +136,7 @@
   </div>
 
   <div>
-    <h3>Minha resenha</h3>
+    <h3>Resenha</h3>
     <fieldset class="rate">
       <legend class="sr-only">Nota</legend>
       {#each [1, 2, 3, 4, 5] as n (n)}
@@ -110,26 +153,61 @@
 
   {#each REVIEW_FIELDS as f (f)}
     <label class="f">
-      <span>
-        {REVIEW_LABEL[f]}
-        {#if HINT[f]}<span class="hint">{HINT[f]}</span>{/if}
-      </span>
+      {FIELDS[f].label}
       <textarea
+        rows="1"
+        placeholder={FIELDS[f].placeholder}
         bind:this={areas[f]}
         value={draft[f]}
+        use:grow={draft[f]}
         oninput={(e) => edit(f, e.currentTarget.value)}
         onblur={() => void saver.flush()}
       ></textarea>
     </label>
   {/each}
 
-  <div>
+  <section class="filebox" aria-labelledby="pdf-h">
+    <h4 class="label" id="pdf-h">PDF</h4>
+    {#if pdf === "none"}
+      <p class="fmeta">Este livro ainda não tem PDF.</p>
+      <div class="facts"><button class="btn small" type="button" onclick={onattach}>Anexar PDF</button></div>
+    {:else}
+      <p class="fmeta">
+        <span class="fname">{book.file_name || "livro.pdf"}</span>
+        {#if book.pdf_size}<span class="mono"> · {formatBytes(book.pdf_size)}</span>{/if}
+      </p>
+      <p class="fmeta">
+        {#if pdf === "uploading" && offlineSize !== undefined}
+          {upload !== undefined ? `Enviando para a nuvem… ${Math.round(upload * 100)}%` : "Guardado neste aparelho, aguardando envio."}
+        {:else if pdf === "uploading"}
+          Ainda subindo de outro aparelho.
+        {:else if offlineSize !== undefined}
+          Disponível offline neste aparelho.
+        {:else}
+          Só na nuvem; abre quando houver conexão.
+        {/if}
+      </p>
+      <div class="facts">
+        {#if pdf === "ready" && offlineSize !== undefined}
+          <button class="btn small" type="button" disabled={offlineBusy} onclick={toggleOffline}>Liberar espaço</button>
+        {:else if pdf === "ready"}
+          <button class="btn small" type="button" disabled={offlineBusy} onclick={toggleOffline}>
+            {offlineBusy ? "Baixando…" : "Baixar para ler offline"}
+          </button>
+        {/if}
+        <button class="btn small ghost" type="button" onclick={onattach}>Trocar PDF</button>
+      </div>
+      {#if offlineMsg}<p class="err" role="alert">{offlineMsg}</p>{/if}
+    {/if}
+  </section>
+
+  <div class="danger-zone">
     {#if confirming}
       <div class="confirm" role="alertdialog" aria-labelledby="del-q">
         <span id="del-q">Excluir “{book.title}”{book.pdf_key ? ", o PDF" : ""} e a resenha? Não dá para desfazer.</span>
         <div class="acts-end">
           <button class="btn ghost" type="button" onclick={() => (confirming = false)}>Cancelar</button>
-          <button class="btn danger" type="button" disabled={deleting} onclick={remove}>Excluir</button>
+          <button class="btn danger solid" type="button" disabled={deleting} onclick={remove}>Excluir</button>
         </div>
         {#if deleteError}<p class="err" role="alert">{deleteError}</p>{/if}
       </div>

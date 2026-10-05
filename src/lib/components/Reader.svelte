@@ -90,9 +90,9 @@
     rendering = true;
     try {
       const p = await doc.getPage(page);
-      const avail = Math.max(200, stage.clientWidth - 32);
+      const avail = Math.max(200, stage.clientWidth - 40);
       const base = p.getViewport({ scale: 1 });
-      const scale = Math.min(avail / base.width, 1.6) * zoom;
+      const scale = Math.min(avail / base.width, 1.5) * zoom;
       const dpr = window.devicePixelRatio || 1;
       const vp = p.getViewport({ scale: scale * dpr });
       canvas.width = Math.floor(vp.width);
@@ -183,26 +183,6 @@
 <svelte:window onkeydown={onKey} />
 
 <section class="reader" id="painel-ler" aria-label="Leitor de PDF">
-  {#if doc}
-    <div class="rbar">
-      <button class="btn" type="button" aria-label="Página anterior" disabled={page <= 1} onclick={() => goTo(page - 1)}>‹</button>
-      <span class="mono">
-        <input
-          inputmode="numeric"
-          aria-label="Página atual"
-          bind:value={pageField}
-          onchange={() => goTo(parseInt(pageField, 10) || page)}
-          onkeydown={(e) => e.key === "Enter" && goTo(parseInt(pageField, 10) || page)}
-        />
-        de {total}
-      </span>
-      <button class="btn" type="button" aria-label="Próxima página" disabled={page >= total} onclick={() => goTo(page + 1)}>›</button>
-      <span class="gap"></span>
-      <button class="btn" type="button" aria-label="Diminuir zoom" onclick={() => setZoom(zoom - 0.2)}>−</button>
-      <span class="mono" aria-live="polite">{Math.round(zoom * 100)}%</span>
-      <button class="btn" type="button" aria-label="Aumentar zoom" onclick={() => setZoom(zoom + 0.2)}>+</button>
-    </div>
-  {/if}
   <div class="stage" bind:this={stage}>
     <canvas bind:this={canvas} hidden={!doc} aria-label={doc ? `Página ${page} de ${total}` : undefined}></canvas>
     {#if message}
@@ -216,4 +196,23 @@
       </div>
     {/if}
   </div>
+  {#if doc}
+    <div class="rbar" role="toolbar" aria-label="Controles de leitura">
+      <button class="btn icon" type="button" aria-label="Página anterior" disabled={page <= 1} onclick={() => goTo(page - 1)}>‹</button>
+      <input
+        class="mono"
+        inputmode="numeric"
+        aria-label="Página atual"
+        bind:value={pageField}
+        onchange={() => goTo(parseInt(pageField, 10) || page)}
+        onkeydown={(e) => e.key === "Enter" && goTo(parseInt(pageField, 10) || page)}
+      />
+      <span class="of">de <span class="mono">{total}</span></span>
+      <button class="btn icon" type="button" aria-label="Próxima página" disabled={page >= total} onclick={() => goTo(page + 1)}>›</button>
+      <span class="sep zoom" aria-hidden="true"></span>
+      <button class="btn icon zoom" type="button" aria-label="Diminuir zoom" onclick={() => setZoom(zoom - 0.2)}>−</button>
+      <span class="mono zoom zlbl" aria-live="polite">{Math.round(zoom * 100)}%</span>
+      <button class="btn icon zoom" type="button" aria-label="Aumentar zoom" onclick={() => setZoom(zoom + 0.2)}>+</button>
+    </div>
+  {/if}
 </section>

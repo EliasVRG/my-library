@@ -22,48 +22,5 @@ dialog.sheet::backdrop { background: var(--scrim); }
 .filelist li { display: flex; justify-content: space-between; gap: 10px; align-items: center; font-size: 13px; }
 .filelist .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* Mesa de leitura */
-.desk { position: fixed; inset: 0; background: var(--bg); z-index: 10; display: flex; flex-direction: column; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
-.deskhead { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--surface); }
-.deskhead .t { flex: 1 1 200px; min-width: 0; }
-.deskhead h2 { font-family: var(--serif); font-weight: 600; font-size: 20px; margin: 0; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.deskhead .author { font-size: 12px; }
-.deskhead .side { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
-.savestate { font-size: 12px; color: var(--muted); min-width: 70px; text-align: right; }
-.tabs { display: none; gap: 4px; padding: 8px 16px 0; background: var(--surface); border-bottom: 1px solid var(--line); }
-.tab { border: 0; background: transparent; padding: 8px 14px; border-bottom: 2px solid transparent; font-weight: 500; color: var(--muted); }
-.tab[aria-selected="true"] { color: var(--ink); border-color: var(--accent); }
-.deskbody { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 420px); }
-.reader { display: flex; flex-direction: column; min-width: 0; min-height: 0; border-right: 1px solid var(--line); }
-.rbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--line); background: var(--surface); }
-.rbar input { width: 64px; text-align: center; border: 1px solid var(--line); background: var(--bg); border-radius: 6px; padding: 5px; font-size: 16px; }
-.rbar .gap { width: 8px; }
-.stage { flex: 1; overflow: auto; background: var(--stage); padding: 16px; display: flex; justify-content: center; align-items: flex-start; }
-.stage canvas { background: var(--page); box-shadow: var(--shadow-page); max-width: none; }
-.stagemsg { margin: auto; text-align: center; color: var(--muted); display: flex; flex-direction: column; gap: 12px; align-items: center; max-width: 40ch; }
-.stagemsg p { margin: 0; }
-.review { overflow: auto; padding: 18px 18px 40px; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
-.review h3 { font-family: var(--serif); font-weight: 600; font-size: 20px; margin: 0; }
-.rate { display: flex; gap: 2px; border: 0; padding: 0; margin: 0; }
-.rate button { border: 0; background: transparent; font-size: 24px; line-height: 1; padding: 2px; color: var(--line); }
-.rate button.on { color: var(--accent); }
-.review textarea { min-height: 96px; resize: vertical; line-height: 1.5; }
-.settings { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.confirm { border: 1px solid var(--danger); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 10px; font-size: 14px; }
-
-
-@media (max-width: 900px) {
-  .tabs { display: flex; }
-  .deskbody { grid-template-columns: minmax(0, 1fr); }
-  .deskbody[data-tab="ler"] .review { display: none; }
-  .deskbody[data-tab="resenha"] .reader { display: none; }
-  .reader { border-right: 0; }
-}
-@media (max-width: 480px) {
-  .two, .settings { grid-template-columns: 1fr; }
-  .deskhead { padding: 8px 12px; }
-  .deskhead .side { width: 100%; justify-content: space-between; }
-  .rbar { gap: 6px; }
-}
 .meter { height: 6px; border-radius: 6px; background: var(--line); overflow: hidden; }
 .meter i { display: block; height: 100%; background: var(--accent); }

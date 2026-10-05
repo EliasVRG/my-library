@@ -41,7 +41,7 @@ label.f { display: flex; flex-direction: column; gap: 6px; font-size: 12px; font
 .f input, .f select, .f textarea { border: 1px solid var(--line); background: var(--bg); border-radius: 10px; padding: 10px 12px; font-weight: 400; font-size: 16px; color: var(--ink); width: 100%; transition: border-color 0.15s; }
 .f input:focus, .f select:focus, .f textarea:focus { outline: none; border-color: var(--ink); }
 .f input:focus-visible, .f select:focus-visible, .f textarea:focus-visible { box-shadow: 0 0 0 1px var(--ink); }
-::placeholder { color: var(--faint); opacity: 1; }
+::placeholder { color: var(--muted); opacity: 1; }
 label.check { display: flex; gap: 8px; align-items: center; font-size: 14px; }
 .hint { font-weight: 400; color: var(--muted); font-size: 12px; text-transform: none; letter-spacing: 0; }
 .err { color: var(--danger); font-size: 13px; margin: 0; }
