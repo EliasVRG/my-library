@@ -1,152 +1,171 @@
 # Estante de Leitura
 
-Biblioteca pessoal de PDFs para estudo: estante com filtros, leitor de PDF que lembra a página onde você parou e uma resenha estruturada por livro. É um PWA instalável no computador e no celular, funciona sem internet e sincroniza com a Cloudflare quando a conexão volta.
+**English** · [Português](README.pt-BR.md)
 
-- **Front:** Svelte 5 + Vite (SPA), IndexedDB (`idb`), `pdfjs-dist`, `vite-plugin-pwa`.
-- **Back:** um Cloudflare Worker (Hono) que serve o app (static assets) e a API em `/api/*`, com D1 (dados) e R2 (PDFs).
-- **Acesso:** Cloudflare Access na frente do domínio; o Worker também valida o JWT do Access.
+A personal PDF library for study: a reader that remembers your page, a structured review per book, and sync across devices that works offline.
 
-> **Por que Worker e não Pages?** A documentação da Cloudflare hoje recomenda começar projetos novos em Workers ("Start new projects with Workers"), que já servem arquivos estáticos e SPA. Assim app, API, D1 e R2 ficam num único deploy e numa única configuração.
+**[Open the demo](https://my-library-demo.eliasvictor2452.workers.dev)** (no login; your data stays in your browser). The interface is in Portuguese.
 
-## Como funciona a sincronização
+[![CI](https://github.com/EliasVRG/my-library/actions/workflows/ci.yml/badge.svg)](https://github.com/EliasVRG/my-library/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-- A interface lê e escreve **só no IndexedDB**. Cada alteração entra numa fila de saída (outbox) e sobe em lote, com nova tentativa e espera crescente (backoff). O envio é disparado quando a conexão volta, quando a janela ganha foco, a cada 60 s e logo depois de cada edição.
-- Os conflitos são resolvidos **campo a campo**: cada campo guarda o relógio `[timestamp, aparelho]` da última escrita, e a mais recente vence. Avançar páginas no computador e escrever a resenha no celular não se sobrescrevem.
-- O cursor de `GET /api/changes?since=` é uma revisão crescente gerada pelo servidor, não o relógio do aparelho. Um celular com a hora errada não faz ninguém perder alterações.
-- **Exclusão vence tudo:** um livro excluído não volta, nem por edição posterior em outro aparelho nem por importação de backup. A exclusão apaga também a resenha e o PDF no R2.
-- Os PDFs sobem em partes de 10 MB (multipart do R2). Por isso não há limite de tamanho, só o espaço do aparelho. Se a conexão cair, o upload continua da última parte enviada. Todo PDF aberto fica guardado no aparelho para ler offline.
+![Shelf with the "Continue reading" row and the cover grid](docs/screenshots/shelf-light.png)
 
-## Pré-requisitos
+| Dark theme | Reader with review | Phone |
+|---|---|---|
+| ![Shelf in dark theme](docs/screenshots/shelf-dark.png) | ![PDF reader with the review panel](docs/screenshots/reader.png) | ![Shelf on a phone](docs/screenshots/mobile-shelf.png) |
+| **Reader on a phone** | **Sync: two devices offline** | **Sync: after reconnecting** |
+| ![Reader on a phone](docs/screenshots/mobile-reader.png) | ![Two offline devices with different edits](docs/screenshots/sync-before.png) | ![Both devices converged](docs/screenshots/sync-after.png) |
 
-- Node.js **22.13 ou mais novo**.
-- npm **11** (o npm 10.9 quebra ao resolver as dependências deste projeto: `Cannot read properties of null (reading 'edgesOut')`). Use `npm install -g npm@11` ou rode tudo com `npx npm@11 …`.
-- Uma conta Cloudflare (o plano gratuito basta). Não precisa de domínio próprio: o app fica em `my-library.<seu-subdominio>.workers.dev` (o desta conta é `https://my-library.eliasvictor2452.workers.dev`).
+## Features
 
-## Rodar localmente
+- Shelf with filters by category, status (want to read, reading, paused, read) and search; a "Continue reading" row.
+- PDF reader (pdf.js) with the current page saved automatically, zoom and arrow keys.
+- One review per book: a rating and six fields (summary, author's arguments, where I agree, where I disagree, the best counter-argument, notes).
+- Works offline as a PWA. Every PDF you open is kept on the device; you can free space per book.
+- Syncs across devices when online, merging field by field.
+- Exports a `.zip` with one Markdown review per book and an `estante.json` (PDFs optional), and imports it back. Each PDF can also be saved on its own.
+- Single-user access through Cloudflare Access.
+
+## Architecture
+
+```mermaid
+flowchart LR
+  subgraph Browser
+    UI["UI (Svelte 5)"] -->|reads and writes| IDB[("IndexedDB<br/>books · reviews · PDFs")]
+    UI -->|every edit| OB["Outbox"]
+    OB --> ENG["Sync engine"]
+  end
+  ENG -->|"POST /api/push (batches)"| W["Worker (Hono)"]
+  ENG -->|"PUT 10 MB parts"| W
+  W -->|"GET /api/changes?since=cursor"| ENG
+  ENG -->|applies to| IDB
+  ACC["Cloudflare Access"] -. JWT .-> W
+  W --> D1[("D1<br/>SQLite")]
+  W --> R2[("R2<br/>PDFs")]
+```
+
+The UI never waits for the network: it only reads from and writes to IndexedDB. Every edit also goes into an outbox, which the sync engine sends in batches when there is a connection (when the network comes back, when the window gains focus, and every minute). The Worker serves the app as static assets and answers under `/api/*`. It merges changes into D1 and stores PDFs in a private R2 bucket. To receive changes, the app asks the server for everything that changed since its last cursor.
+
+## How sync works
+
+**Field-level merge.** Every field of a book or a review carries a `[timestamp, device]` clock for its last write. On conflict, the larger timestamp wins and the device id breaks ties. So turning pages on the laptop and writing the review on the phone don't overwrite each other: they are different fields. Several edits to the same record collapse into one outbox entry holding the latest value of each field, so turning 30 pages produces one request, not 30.
+
+**The cursor comes from the server.** Every write to D1 gets an increasing revision (`rev`), and a pull asks for `rev > cursor`. If the cursor were the device clock, a phone running behind could skip changes that landed while it thought it was up to date. Device clocks only decide who wins within a field. When applying a pull, the client takes the server's value for every field that has no pending local edit, so all devices converge to the same state.
+
+**Deletes beat edits.** A deleted book becomes a tombstone (`deleted_at`) that propagates to other devices. After that, no edit brings it back, not even a later edit from another device or a backup import. The Worker also clears the review and deletes the PDF from R2.
+
+**Resumable multipart upload.** The PDF is stored on the device and the book shows up right away. The upload is queued as an R2 multipart upload in 10 MB parts, and each finished part is recorded in IndexedDB. If the connection drops, the upload resumes from the next part. If the upload expires in R2 (after 7 days), it starts over. The upload only starts after the book itself has reached the server, and if the PDF is replaced midway, the old upload is discarded.
+
+```mermaid
+sequenceDiagram
+  participant PC as Laptop (offline)
+  participant W as Worker + D1
+  participant Ph as Phone (offline)
+  Note over PC,Ph: both start at rev 40
+  PC->>PC: summary = "…"  [t1, pc]
+  Ph->>Ph: page = 120  [t2, phone]
+  Note over PC,Ph: back online
+  PC->>W: push { summary: t1 }
+  W->>W: field-level merge → rev 41
+  Ph->>W: push { page: t2 }
+  W->>W: field-level merge → rev 42
+  Ph->>W: changes?since=40
+  W-->>Ph: book (rev 42) + review (rev 41)
+  PC->>W: changes?since=41
+  W-->>PC: book (rev 42)
+  Note over PC,Ph: both keep the laptop's summary and the phone's page
+```
+
+The [`/demo/sync`](https://my-library-demo.eliasvictor2452.workers.dev/demo/sync) page runs this scenario with the real code (`LocalStore`, `SyncEngine` and the merge in `shared/merge.ts`). Only the server runs inside the browser.
+
+## Decisions and trade-offs
+
+- **A Worker with static assets instead of Pages.** This is what Cloudflare's docs recommend for new projects today. The app, the API, D1 and R2 live in one deploy and one config. The cost is configuring the SPA fallback explicitly, along with which routes reach the Worker (`run_worker_first: ["/api/*"]`).
+- **Svelte 5 with no UI library.** A small runtime and rune-based reactivity. The production app's initial JS is 48 KB gzipped (measured below). The cost is a smaller ecosystem than React's, which mattered little for an app this size.
+- **Cloudflare Access instead of custom auth.** There are no passwords, sessions or login screen in the code. The Worker only validates the Access JWT: signature, `iss`, `aud` and the allowed email. The costs:
+  - the app is tied to Cloudflare and has a single user;
+  - redirect-based login doesn't mix well with a PWA that serves the app from cache. When the session expires, the app sends you to `/api/login`, a route the service worker doesn't intercept, and Access asks you to log in again.
+- **Field-level merge instead of record-level last-write-wins.** It handles the real case (review on one device, reading on another) with little code and no per-character metadata. **Limitation:** the same text field edited offline on two devices is not merged; the most recent write wins as a whole. For truly collaborative text I would use a CRDT (Yjs or Automerge) for the review fields, at the cost of more metadata and a less simple export format.
+- **Device clocks order writes.** A device whose clock runs ahead can win a conflict it shouldn't. The server caps timestamps at 60 s in the future, but a device running behind still loses conflicts. A hybrid logical clock (HLC) would fix this at a small cost in complexity.
+- **Permanent deletes.** Simple and predictable, but there is no trash and no undo.
+
+Other known limitations:
+- The reader draws one page at a time on a canvas, with no text layer. You can't select or search text in the PDF.
+- The whole PDF is loaded into memory for pdf.js. Very large files are heavy on a phone.
+- Each push carries at most 20 records, because D1 on the free plan allows 50 queries per request.
+
+## Testing
+
+```sh
+npm test        # Vitest: 57 tests
+npm run check   # svelte-check + tsc for the Worker
+```
+
+- **`tests/unit/merge.test.ts` (20 tests):** field-level merge, tie-breaking, deletes winning over edits, convergence with a clock running ahead, and validation of incoming changes.
+- **`tests/unit/sync.test.ts` (18 tests):**
+  - the outbox: collapsing page turns, retry with backoff, edits made during a push, an invalid item not blocking the rest, expired session and denied login;
+  - two devices converging;
+  - resumable multipart upload.
+- **`tests/unit/demo.test.ts` (5 tests):** the sample data, "Restore sample" and the serverless mode.
+- **`tests/worker/api.test.ts` (14 tests):** Worker routes running in workerd with local D1 and R2. They cover push/changes, CAS, deletes removing the PDF from R2, multipart upload with Range reads, and Access JWT validation (with keys generated in the test).
+
+Client tests run in Node with `fake-indexeddb` and the same in-memory server used by the `/demo/sync` page. CI runs `check`, `test` and both builds. The demo build fails if any emitted file contains `/api/` (`scripts/check-demo-bundle.mjs`).
+
+End-to-end browser flows (two devices, offline, upload, delete) were tested with Playwright during development, but those scripts aren't in the repo. `npm run screenshots` walks through the demo, including the sync on the `/demo/sync` page.
+
+**Bundle size**, measured with `gzip -9 -c <file> | wc -c` on the output of `npm run build` (Vite 8.3.2, 2026-10-05):
+
+| File | Raw | gzip -9 |
+|---|---|---|
+| App initial JS | 134 KB | 48 KB |
+| CSS | 24 KB | 5.6 KB |
+| pdf.js (loaded when a book is opened) | 431 KB | 127 KB |
+| pdf.js worker | 1.26 MB | 375 KB |
+
+## Running locally
+
+Requires Node 22.13+ and npm 11 (npm 10 fails to install without a lockfile; with `package-lock.json`, `npm ci` works).
 
 ```sh
 npm install
-cp .dev.vars.example .dev.vars        # DEV_SKIP_ACCESS=1: pula o Access, só em localhost
-npm run db:migrate:local              # cria as tabelas no D1 local
-npm run dev                           # http://localhost:5173 (Vite + Worker no workerd)
+cp .dev.vars.example .dev.vars   # DEV_SKIP_ACCESS=1: skips Access, localhost only
+npm run db:migrate:local
+npm run dev                      # app + Worker in workerd, with local D1 and R2
+npm run dev:demo                 # the demo, no Worker
 ```
 
-O `npm run dev` usa o `@cloudflare/vite-plugin`: o Worker roda no runtime da própria Cloudflare (workerd), com D1 e R2 locais em `.wrangler/state` e recarregamento automático.
+`npm run preview` tests the production build with `wrangler dev`, service worker included.
 
-Para testar o build final como ele vai para produção (com service worker e modo offline):
+## Deploying
 
-```sh
-npm run preview                       # build + wrangler dev em http://localhost:8787
-```
+### Production
 
-Os dois usam o mesmo banco e o mesmo bucket locais. Para zerar tudo: `rm -rf .wrangler/state && npm run db:migrate:local`.
-
-A variável `DEV_SKIP_ACCESS` só tem efeito quando o host é `localhost`, `127.0.0.1` ou `[::1]`. Em qualquer outro host o Worker exige o JWT do Access, mesmo que a variável esteja definida.
-
-### Testes e checagem de tipos
-
-```sh
-npm test            # Vitest: merge, fila, upload (Node + fake-indexeddb) e rotas do Worker (workerd com D1/R2)
-npm run check       # svelte-check + tsc do Worker
-```
-
-## Criar o D1 e o R2
-
-```sh
-npx wrangler login
-npx wrangler d1 create estante
-```
-
-Quando o wrangler perguntar se deve adicionar o banco à configuração por você, responda **não**: ele cria um segundo binding com outro nome, e com a opção de usar o banco remoto em desenvolvimento, o que faria o `npm run dev` e os testes gravarem no banco de produção. Em vez disso, copie o `database_id` que aparece na saída para `wrangler.jsonc`, dentro de `d1_databases` (o ID não é segredo, mas é por isso que ele não vem no repositório):
-
-```jsonc
-"d1_databases": [{ "binding": "DB", "database_name": "estante", "database_id": "COLE-AQUI", "migrations_dir": "migrations" }]
-```
-
-Depois crie o bucket e aplique as migrações:
-
-```sh
-npx wrangler r2 bucket create estante-pdfs
-npm run db:migrate:remote
-```
-
-O bucket é privado (não ative acesso público nem domínio `r2.dev`). Os PDFs só saem pelo Worker, depois da validação do Access. Buckets novos já vêm com a regra que descarta uploads multipart incompletos após 7 dias.
-
-Migrações novas vão em `migrations/NNNN_descricao.sql` e são aplicadas com os mesmos comandos `db:migrate:*`.
-
-## Deploy
-
-O app é publicado em `https://my-library.eliasvictor2452.workers.dev`. Se a conta ainda não tem um subdomínio `workers.dev`, o painel pede para escolher um na primeira vez que você abre **Workers & Pages**.
-
-**Pelo terminal:**
-
-```sh
-npm run deploy
-```
-
-**Ou automático a cada push (Workers Builds):** em **Workers & Pages → Create → Import a repository**, escolha o repositório e configure:
-
-| Campo | Valor |
-|---|---|
-| Nome do Worker | `my-library` (igual ao `name` do `wrangler.jsonc`) |
-| Build command | `npm run build` |
-| Deploy command | `npx wrangler deploy` |
-
-O build não aplica migrações do D1: quando houver uma nova em `migrations/`, rode `npm run db:migrate:remote` antes do push. Desative os builds de branches que não sejam a `main` (as URLs de preview estão desligadas no `wrangler.jsonc`).
-
-Até você configurar o Access e os segredos (abaixo), a API responde `500 Access não configurado`. Ela falha fechada.
-
-## Configurar o Cloudflare Access
-
-1. No painel: **Workers & Pages → my-library → Settings → Domains & Routes**. Na linha do `workers.dev`, clique em **Enable Cloudflare Access**. Se for o primeiro uso do Zero Trust, o painel pede para criar um *team name* (plano Free).
-2. A janela que aparece mostra dois valores; anote-os:
-   - o **team domain**, algo como `https://minha-equipe.cloudflareaccess.com` (se o painel mostrar a URL dos certificados, `…/cdn-cgi/access/certs`, tudo bem: o Worker usa só o começo dela);
-   - o **AUD** (Application Audience Tag), que o painel chama de `POLICY_AUD`.
-3. Restrinja a política ao seu e-mail. Em **Manage Cloudflare Access** (ou em **Zero Trust → Access controls → Applications**, na aplicação criada), deixe uma única política: Action **Allow**, regra **Include → Emails → o seu e-mail**. Login por *One-time PIN* (código por e-mail) já basta; ajuste a *session duration* se quiser (ex.: 1 mês).
-4. Configure os segredos do Worker:
-
+1. Create the database with `npx wrangler d1 create estante`. When wrangler offers to edit the config, answer **no** and paste the `database_id` into `wrangler.jsonc`.
+2. Enable R2 in the dashboard, then run:
    ```sh
-   npx wrangler secret put ACCESS_TEAM_DOMAIN   # https://minha-equipe.cloudflareaccess.com
-   npx wrangler secret put ACCESS_AUD           # o AUD do passo 2
-   npx wrangler secret put ALLOWED_EMAIL        # seu e-mail (aceita vários, separados por vírgula)
+   npx wrangler r2 bucket create estante-pdfs
+   npm run db:migrate:remote
+   npm run deploy
    ```
+   Or connect the repo under *Workers & Pages → Builds*, with `npm run build` as the build command.
+3. In the Worker's **Access** tab, protect **All traffic** with an *Allow → Emails → your email* policy.
+4. Set the secrets from the values shown in the Access dialog:
+   ```sh
+   npx wrangler secret put ACCESS_TEAM_DOMAIN   # https://<your-team>.cloudflareaccess.com
+   npx wrangler secret put ACCESS_AUD           # <application aud>
+   npx wrangler secret put ALLOWED_EMAIL        # <your email>
+   ```
+   Without the secrets, the API rejects every request.
 
-Pronto: abra `https://my-library.eliasvictor2452.workers.dev`, entre com o código enviado ao seu e-mail e instale o app. No Chrome/Edge do computador, use o ícone de instalar na barra de endereço; no Android, "Adicionar à tela inicial"; no iPhone, Safari → Compartilhar → "Adicionar à Tela de Início".
+New migrations go in `migrations/` and are applied with `npm run db:migrate:remote` before deploying. To back up the database: `npx wrangler d1 export estante --remote --output=backups/estante.sql`.
 
-**Sessão expirada:** quando a sessão do Access vence, o app continua funcionando offline e mostra "Entrar de novo". O botão leva a `/api/login`, que o service worker não intercepta, então passa pelo login do Access e volta para o app. As alterações feitas nesse meio-tempo sobem logo depois.
+### Demo
 
-**Com domínio próprio no futuro:** adicione `"routes": [{ "pattern": "estante.seudominio.com", "custom_domain": true }]` ao `wrangler.jsonc`, troque `workers_dev` para `false`, crie no Zero Trust uma aplicação *Self-hosted* para esse hostname (mesma política) e atualize `ACCESS_AUD`.
+1. Download the three sample PDFs from [dominiopublico.gov.br](http://www.dominiopublico.gov.br) and save them to `demo/pdfs/` using the names in [`demo/pdfs/README.md`](demo/pdfs/README.md). Check with `npm run demo:pdfs`.
+2. Run `npm run deploy:demo`. It publishes `dist-demo/` to the `my-library-demo` Worker as static assets only: no D1, no R2, no Access.
+3. `npm run screenshots` regenerates the images in this README.
 
-## Backup
+## License
 
-- **Um PDF só:** no painel do livro, seção *PDF* → **Salvar arquivo** baixa o PDF com o nome original. **Remover PDF** tira o arquivo da nuvem e de todos os aparelhos, mantendo o livro, a resenha e o progresso (a confirmação oferece salvar uma cópia antes).
-- **Pelo app:** *Dados e backup → Exportar .zip*. O zip traz uma resenha por livro em Markdown (com front matter: título, autor, categoria, situação, nota, datas) e o `estante.json` com todos os dados. Marque "Incluir os PDFs" para levar os arquivos também.
-- **Restaurar ou migrar:** *Dados e backup → Importar* aceita o `estante.json` ou o próprio zip. Nada é apagado: cada campo fica com a versão mais recente. Se o PDF de um livro ainda existir no R2, ele volta a ficar disponível sozinho.
-- **Banco inteiro:** `npx wrangler d1 export estante --remote --output=backups/estante.sql` (a pasta `backups/` está no `.gitignore`). O D1 também tem *Time Travel*: `npx wrangler d1 time-travel restore estante --timestamp=…` volta o banco a um ponto no passado (7 dias no plano gratuito, 30 no pago).
-- **PDFs:** ficam no R2. Para uma cópia fora da Cloudflare, crie um token de API do R2 (S3) e use `rclone sync` ou outro cliente S3, ou exporte o zip com PDFs pelo app.
-
-## Limites a conhecer
-
-- O D1 do plano gratuito permite 50 queries por requisição. Por isso o envio vai em lotes de até 20 alterações (o app faz isso sozinho).
-- O plano gratuito aceita até 100 MB por requisição. Como cada parte do upload tem 10 MB, isso não limita o tamanho dos PDFs.
-- O espaço para PDFs offline é o que o navegador libera ao app. *Dados e backup* mostra o uso e permite liberar PDFs já sincronizados (eles continuam na nuvem). Instalar o app costuma garantir armazenamento persistente.
-
-## Estrutura
-
-```
-src/                 front (Svelte 5)
-  lib/db/            IndexedDB: schema e repositório (toda escrita da UI passa por aqui)
-  lib/sync/          motor de sincronização: outbox, push/pull, upload em partes
-  lib/pdf/           pdf.js sob demanda e cache de PDFs offline
-  lib/export/        exportar zip / importar json
-  lib/components/    estante, card, mesa de leitura, leitor, resenha, diálogos
-  styles/            tokens (paleta, fontes, temas) e estilos
-shared/              tipos, validação e merge por campo (mesmo código no front e no Worker)
-worker/              API Hono: auth do Access, sync, PDFs no R2
-migrations/          SQL do D1
-tests/unit/          merge, fila, dois aparelhos, upload (Node)
-tests/worker/        rotas do Worker em workerd com D1/R2 locais
-scripts/make-icons.mjs  gera os ícones PNG do PWA
-```
-
-O repositório não guarda PDFs nem dados: `*.pdf`, `*.zip`, `estante*.json`, `.dev.vars` e `.wrangler/` estão no `.gitignore`.
+[MIT](LICENSE)
