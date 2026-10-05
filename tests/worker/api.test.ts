@@ -3,7 +3,7 @@ import { env } from "cloudflare:workers";
 import { exportJWK, generateKeyPair, SignJWT, createLocalJWKSet } from "jose";
 import { describe, expect, it } from "vitest";
 import app from "../../worker/index";
-import { verifyAccessToken } from "../../worker/auth";
+import { teamOrigin, verifyAccessToken } from "../../worker/auth";
 import type { ChangesResponse } from "../../shared/model";
 
 const ORIGIN = "http://localhost";
@@ -164,6 +164,14 @@ describe("autenticação", () => {
   it("fora de localhost, DEV_SKIP_ACCESS não vale e o token é obrigatório", async () => {
     expect((await call("/api/me", {}, "https://estante.exemplo.com")).status).toBe(401);
     expect((await call("/api/me", { headers: { "cf-access-jwt-assertion": "lixo" } }, "https://estante.exemplo.com")).status).toBe(403);
+  });
+
+  it("aceita o team domain em qualquer formato que o painel mostra", () => {
+    const want = "https://equipe.cloudflareaccess.com";
+    for (const v of ["equipe.cloudflareaccess.com", want, `${want}/`, `${want}/cdn-cgi/access/certs`, `  ${want}  `]) {
+      expect(teamOrigin(v)).toBe(want);
+    }
+    expect(teamOrigin("")).toBeUndefined();
   });
 
   it("em localhost com DEV_SKIP_ACCESS=1 libera", async () => {

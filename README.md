@@ -100,7 +100,7 @@ Até você configurar o Access e os segredos (abaixo), a API responde `500 Acces
 
 1. No painel: **Workers & Pages → my-library → Settings → Domains & Routes**. Na linha do `workers.dev`, clique em **Enable Cloudflare Access**. Se for o primeiro uso do Zero Trust, o painel pede para criar um *team name* (plano Free).
 2. A janela que aparece mostra dois valores; anote-os:
-   - o **team domain**, algo como `https://minha-equipe.cloudflareaccess.com`;
+   - o **team domain**, algo como `https://minha-equipe.cloudflareaccess.com` (se o painel mostrar a URL dos certificados, `…/cdn-cgi/access/certs`, tudo bem: o Worker usa só o começo dela);
    - o **AUD** (Application Audience Tag), que o painel chama de `POLICY_AUD`.
 3. Restrinja a política ao seu e-mail. Em **Manage Cloudflare Access** (ou em **Zero Trust → Access controls → Applications**, na aplicação criada), deixe uma única política: Action **Allow**, regra **Include → Emails → o seu e-mail**. Login por *One-time PIN* (código por e-mail) já basta; ajuste a *session duration* se quiser (ex.: 1 mês).
 4. Configure os segredos do Worker:

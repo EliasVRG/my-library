@@ -15,14 +15,29 @@ export type AuthResult = { ok: true; email: string } | { ok: false; status: 401 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
 export function readConfig(env: AppEnv): AccessConfig | null {
-  const teamDomain = env.ACCESS_TEAM_DOMAIN?.trim().replace(/\/+$/, "");
+  const teamDomain = teamOrigin(env.ACCESS_TEAM_DOMAIN);
   const aud = env.ACCESS_AUD?.trim();
   const allowedEmails = (env.ALLOWED_EMAIL ?? "")
     .split(",")
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
   if (!teamDomain || !aud || allowedEmails.length === 0) return null;
-  return { teamDomain: teamDomain.startsWith("https://") ? teamDomain : `https://${teamDomain}`, aud, allowedEmails };
+  return { teamDomain, aud, allowedEmails };
+}
+
+/**
+ * Normaliza o team domain para a origem (é o `iss` do token). Aceita o que o painel mostra,
+ * inclusive a URL dos certificados: "minha-equipe.cloudflareaccess.com",
+ * "https://minha-equipe.cloudflareaccess.com/" ou ".../cdn-cgi/access/certs".
+ */
+export function teamOrigin(raw: string | undefined): string | undefined {
+  const value = raw?.trim();
+  if (!value) return undefined;
+  try {
+    return new URL(/^https?:\/\//i.test(value) ? value : `https://${value}`).origin;
+  } catch {
+    return undefined;
+  }
 }
 
 const jwksCache = new Map<string, JWTVerifyGetKey>();
