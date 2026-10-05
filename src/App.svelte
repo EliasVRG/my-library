@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { hasReview, type Book, type Status } from "../shared/model";
-  import { app } from "./lib/app.svelte";
+  import DemoBanner from "./demo/DemoBanner.svelte";
+  import { app, backend } from "./lib/app.svelte";
   import AddSheet from "./lib/components/AddSheet.svelte";
   import DataPanel from "./lib/components/DataPanel.svelte";
   import Desk from "./lib/components/Desk.svelte";
@@ -57,6 +58,8 @@
   });
 </script>
 
+{#if backend.mode === "demo"}<DemoBanner />{/if}
+
 <div class="wrap" inert={!!openBook}>
   <header class="top">
     <div class="brand">
@@ -72,7 +75,7 @@
       {/if}
     </div>
     <div class="acts">
-      <SyncBadge onclick={() => (dataOpen = true)} />
+      {#if backend.mode === "prod"}<SyncBadge onclick={() => (dataOpen = true)} />{/if}
       <button class="btn ghost" type="button" title="Dados e backup" onclick={() => (dataOpen = true)}>Dados</button>
       <button class="btn primary" type="button" onclick={() => (sheet = { mode: "new" })} disabled={!app.ready}>+ Adicionar</button>
     </div>
@@ -88,10 +91,10 @@
       </span>
       <button class="btn small" type="button" onclick={() => void app.engine.retryNow()}>Tentar de novo</button>
     </div>
-  {:else if app.sync.state === "auth"}
+  {:else if app.sync.state === "auth" && backend.loginUrl}
     <div class="notice warn" role="status">
       <span>Sua sessão expirou. Suas alterações estão salvas neste aparelho e sobem assim que você entrar de novo.</span>
-      <a class="btn small" href="/api/login">Entrar de novo</a>
+      <a class="btn small" href={backend.loginUrl}>Entrar de novo</a>
     </div>
   {/if}
 

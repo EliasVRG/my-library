@@ -1,0 +1,12 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // Demo pública: só arquivos estáticos (dist-demo/). Sem Worker, sem D1/R2, sem Access.
+  "name": "my-library-demo",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": true,
+  "preview_urls": false,
+  "assets": {
+    "directory": "./dist-demo",
+    "not_found_handling": "single-page-application"
+  }
+}

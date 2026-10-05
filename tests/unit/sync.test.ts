@@ -3,13 +3,13 @@ import { openEstanteDb, recordItemId, uploadItemId, type RecordItem, type Upload
 import { LocalStore } from "../../src/lib/db/repo";
 import { PdfFiles } from "../../src/lib/pdf/files";
 import { SyncEngine, backoff } from "../../src/lib/sync/engine";
-import { FakeServer } from "./fake-server";
+import { MemoryServer } from "../../src/demo/memory-server";
 
 let t: number;
 const now = () => t;
 let dbCounter = 0;
 
-async function device(server: FakeServer, partSize = 10) {
+async function device(server: MemoryServer, partSize = 10) {
   const db = await openEstanteDb(`teste-${++dbCounter}`);
   const store = await LocalStore.open(db, now);
   const engine = new SyncEngine(store, server.fetcher, { now, random: () => 1, partSize });
@@ -24,7 +24,7 @@ beforeEach(() => {
 
 describe("fila de saída", () => {
   it("agrupa páginas viradas num único item e num único envio", async () => {
-    const server = new FakeServer();
+    const server = new MemoryServer();
     const { store, engine } = await device(server);
     const b = await store.createBook({ title: "Livro" });
     await engine.sync();
@@ -37,13 +37,13 @@ describe("fila de saída", () => {
     expect(items).toHaveLength(1);
     expect((items[0] as RecordItem).fields).toEqual({ current_page: 30 });
     await engine.sync();
-    expect(server.calls.filter((c) => c === "POST /api/push")).toHaveLength(1);
+    expect(server.calls.filter((c) => c === "POST push")).toHaveLength(1);
     expect(server.books.get(b.id)?.current_page).toBe(30);
     expect(await store.outbox()).toHaveLength(0);
   });
 
   it("reenvia depois de falha de rede, respeitando o backoff", async () => {
-    const server = new FakeServer();
+    const server = new MemoryServer();
     const { store, engine } = await device(server);
     const b = await store.createBook({ title: "Offline" });
     server.intercept = () => {
@@ -59,7 +59,7 @@ describe("fila de saída", () => {
     server.intercept = null;
     server.calls = [];
     await engine.sync();
-    expect(server.calls).not.toContain("POST /api/push");
+    expect(server.calls).not.toContain("POST push");
     expect(await store.outbox()).toHaveLength(1);
 
     // Depois do prazo, envia.
@@ -78,7 +78,7 @@ describe("fila de saída", () => {
   });
 
   it("voltar a conexão (retryNow) ignora o backoff", async () => {
-    const server = new FakeServer();
+    const server = new MemoryServer();
     const { store, engine } = await device(server);
     await store.createBook({ title: "X" });
     server.intercept = () => new Response("", { status: 503 });
@@ -90,13 +90,13 @@ describe("fila de saída", () => {
   });
 
   it("edição feita durante o envio continua pendente", async () => {
-    const server = new FakeServer();
+    const server = new MemoryServer();
     const { store, engine } = await device(server);
     const b = await store.createBook({ title: "Antes" });
     await engine.sync();
     await store.updateReview(b.id, { resumo: "versão 1" });
     server.intercept = (path) => {
-      if (path === "/api/push") {
+      if (path === "push") {
         server.intercept = null;
         // usuário digita enquanto a requisição está no ar
         return store.updateReview(b.id, { resumo: "versão 2" }).then(() => undefined);
@@ -115,7 +115,7 @@ describe("fila de saída", () => {
   });
 
   it("um item rejeitado (400) não trava os outros", async () => {
-    const server = new FakeServer();
+    const server = new MemoryServer();
     const { store, engine } = await device(server);
     const ok = await store.createBook({ title: "Bom" });
     const bad = await store.createBook({ title: "Ruim" });
@@ -132,7 +132,7 @@ describe("fila de saída", () => {
   });
 
   it("sessão expirada do Access (redirect) pausa a sincronização sem perder nada", async () => {
-    const server = new FakeServer();
+    const server = new MemoryServer();
     const { store, engine } = await device(server);
     await store.createBook({ title: "X" });
     server.intercept = () => new Response(null, { status: 302, headers: { location: "https://equipe.cloudflareaccess.com/" } });
@@ -144,7 +144,7 @@ describe("fila de saída", () => {
     expect(await store.outbox()).toHaveLength(0);
   });
   it("login recusado pelo Worker (403 com JSON) é diferente de sessão expirada", async () => {
-    const server = new FakeServer();
+    const server = new MemoryServer();
     const { store, engine } = await device(server);
     await store.createBook({ title: "X" });
     server.intercept = () =>
@@ -160,7 +160,7 @@ describe("fila de saída", () => {
 
 describe("dois aparelhos", () => {
   it("resenha no celular e páginas no computador não se sobrescrevem", async () => {
-    const server = new FakeServer();
+    const server = new MemoryServer();
     const pc = await device(server);
     const cel = await device(server);
     const b = await pc.store.createBook({ title: "Rápido e Devagar" });
@@ -188,7 +188,7 @@ describe("dois aparelhos", () => {
   });
 
   it("no mesmo campo, a última escrita vence nos dois aparelhos", async () => {
-    const server = new FakeServer();
+    const server = new MemoryServer();
     const a = await device(server);
     const c = await device(server);
     const b = await a.store.createBook({ title: "T" });
@@ -207,7 +207,7 @@ describe("dois aparelhos", () => {
   });
 
   it("exclusão propaga e vence uma edição feita depois em outro aparelho", async () => {
-    const server = new FakeServer();
+    const server = new MemoryServer();
     const a = await device(server);
     const c = await device(server);
     const b = await a.store.createBook({ title: "Vai sumir", file: pdfFile("conteudo-do-pdf") });
@@ -235,7 +235,7 @@ describe("dois aparelhos", () => {
 
 describe("upload de PDF", () => {
   it("o livro aparece na hora e o arquivo sobe em partes depois", async () => {
-    const server = new FakeServer();
+    const server = new MemoryServer();
     const { store, engine } = await device(server, 10);
     const content = "x".repeat(25);
     const b = await store.createBook({ title: "Com PDF", file: pdfFile(content) });
@@ -250,7 +250,7 @@ describe("upload de PDF", () => {
   });
 
   it("retoma da parte onde parou depois de uma falha", async () => {
-    const server = new FakeServer();
+    const server = new MemoryServer();
     const { store, engine } = await device(server, 10);
     const b = await store.createBook({ title: "Grande", file: pdfFile("a".repeat(10) + "b".repeat(10) + "c".repeat(5)) });
     let putCount = 0;
@@ -267,21 +267,21 @@ describe("upload de PDF", () => {
     server.calls = [];
     await engine.retryNow();
     const puts = server.calls.filter((c) => c.startsWith("PUT"));
-    expect(puts).toEqual([`PUT /api/books/${b.id}/pdf/uploads/${job.upload_id}/parts/2`, `PUT /api/books/${b.id}/pdf/uploads/${job.upload_id}/parts/3`]);
+    expect(puts).toEqual([`PUT books/${b.id}/pdf/uploads/${job.upload_id}/parts/2`, `PUT books/${b.id}/pdf/uploads/${job.upload_id}/parts/3`]);
     expect(new TextDecoder().decode(server.objects.get(b.pdf_key!)!)).toBe("a".repeat(10) + "b".repeat(10) + "c".repeat(5));
   });
 
   it("não começa o upload antes de o livro chegar ao servidor", async () => {
-    const server = new FakeServer();
+    const server = new MemoryServer();
     const { store, engine } = await device(server, 10);
     await store.createBook({ title: "X", file: pdfFile("abc") });
-    server.intercept = (path) => (path === "/api/push" ? new Response("{}", { status: 500 }) : undefined);
+    server.intercept = (path) => (path === "push" ? new Response("{}", { status: 500 }) : undefined);
     await engine.sync();
     expect(server.calls.some((c) => c.includes("/uploads"))).toBe(false);
   });
 
   it("trocar o PDF no meio do upload descarta o upload antigo", async () => {
-    const server = new FakeServer();
+    const server = new MemoryServer();
     const { store, engine } = await device(server, 10);
     const b = await store.createBook({ title: "X", file: pdfFile("primeiro-arquivo-longo") });
     server.intercept = (path, init) => {
@@ -303,7 +303,7 @@ describe("upload de PDF", () => {
 
 describe("remover só o PDF", () => {
   it("tira o PDF da nuvem e do aparelho, mas mantém livro, resenha e progresso", async () => {
-    const server = new FakeServer();
+    const server = new MemoryServer();
     const { store, engine } = await device(server, 10);
     const b = await store.createBook({ title: "Guardar", file: pdfFile("conteudo") });
     await engine.sync();
@@ -327,7 +327,7 @@ describe("remover só o PDF", () => {
   });
 
   it("cancela um upload que ainda não tinha subido", async () => {
-    const server = new FakeServer();
+    const server = new MemoryServer();
     const { store, engine } = await device(server, 10);
     const b = await store.createBook({ title: "Offline", file: pdfFile("abc") });
     await store.removePdf(b.id);
@@ -340,7 +340,7 @@ describe("remover só o PDF", () => {
 
 describe("PDFs offline", () => {
   it("guarda o PDF aberto e não deixa liberar um PDF que ainda não subiu", async () => {
-    const server = new FakeServer();
+    const server = new MemoryServer();
     const { store, engine } = await device(server, 10);
     const b = await store.createBook({ title: "X", file: pdfFile("conteudo") });
     const files = new PdfFiles(store, server.fetcher);

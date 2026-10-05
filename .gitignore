@@ -17,3 +17,5 @@ coverage/
 estante.json
 estante-*.json
 backups/
+
+dist-demo/

@@ -1,5 +1,6 @@
-// Servidor em memória com as mesmas regras do Worker (merge, rev, multipart), para testar
-// vários "aparelhos" sincronizando entre si sem rede.
+// Servidor em memória com as mesmas regras do Worker (merge por campo, rev, multipart), usando
+// o mesmo `shared/merge.ts`. Serve aos testes e à página /demo/sync, que simulam vários
+// aparelhos sincronizando sem rede. Os caminhos são relativos à API ("push", "changes?since=").
 
 import { mergeBook, mergeReview } from "../../shared/merge";
 import { emptyBookData, emptyReviewData, type Book, type ChangesResponse, type Review } from "../../shared/model";
@@ -7,7 +8,7 @@ import { parseChange } from "../../shared/validate";
 
 type Handler = (path: string, init: RequestInit) => Response | Promise<Response | undefined> | undefined;
 
-export class FakeServer {
+export class MemoryServer {
   rev = 0;
   books = new Map<string, Book>();
   reviews = new Map<string, Review>();
@@ -30,8 +31,8 @@ export class FakeServer {
   }
 
   private async handle(path: string, method: string, init: RequestInit): Promise<Response> {
-    const url = new URL(path, "http://x");
-    if (url.pathname === "/api/push" && method === "POST") {
+    const url = new URL(path, "http://memoria/");
+    if (url.pathname === "/push" && method === "POST") {
       const { changes } = JSON.parse(init.body as string);
       const now = Date.now();
       for (const raw of changes) {
@@ -43,7 +44,12 @@ export class FakeServer {
         if (c.table === "books") {
           const base = this.books.get(c.id) ?? { ...emptyBookData(), id: c.id, pdf_ready_key: null, created_at: c.created_at ?? now, updated_at: now, field_clock: {}, rev: 0 };
           const { merged, changed } = mergeBook(base, c.fields, c.clock);
-          if (changed.length || !this.books.has(c.id)) this.books.set(c.id, { ...merged, rev: ++this.rev });
+          // Como no Worker: PDF trocado, removido ou livro excluído descarta o arquivo antigo.
+          if ((changed.includes("pdf_key") && base.pdf_key !== merged.pdf_key) || merged.deleted_at != null) {
+            if (base.pdf_key) this.objects.delete(base.pdf_key);
+            merged.pdf_ready_key = null;
+          }
+          if (changed.length || !this.books.has(c.id)) this.books.set(c.id, { ...merged, updated_at: now, rev: ++this.rev });
           if (merged.deleted_at != null && this.reviews.has(c.id)) {
             this.reviews.set(c.id, { ...this.reviews.get(c.id)!, ...emptyReviewData(), rev: ++this.rev });
           }
@@ -56,7 +62,7 @@ export class FakeServer {
       }
       return this.json({ ok: true });
     }
-    if (url.pathname === "/api/changes") {
+    if (url.pathname === "/changes") {
       const since = Number(url.searchParams.get("since"));
       const res: ChangesResponse = {
         books: [...this.books.values()].filter((b) => b.rev > since),
@@ -66,7 +72,7 @@ export class FakeServer {
       };
       return this.json(structuredClone(res));
     }
-    const m = /^\/api\/books\/([^/]+)\/pdf(?:\/uploads(?:\/([^/]+)(?:\/(parts\/(\d+)|complete))?)?)?$/.exec(url.pathname);
+    const m = /^\/books\/([^/]+)\/pdf(?:\/uploads(?:\/([^/]+)(?:\/(parts\/(\d+)|complete))?)?)?$/.exec(url.pathname);
     if (m) {
       const [, id, uploadId, action, n] = m;
       const book = this.books.get(id);

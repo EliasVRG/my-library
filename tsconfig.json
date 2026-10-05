@@ -11,7 +11,9 @@
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
     "resolveJsonModule": true,
-    "types": ["vite/client", "vite-plugin-pwa/svelte", "vite-plugin-pwa/info"]
+    "types": ["vite/client", "vite-plugin-pwa/svelte", "vite-plugin-pwa/info"],
+    // Vite troca para backend/demo.ts no build demo; os dois exportam o mesmo tipo.
+    "paths": { "$backend": ["./src/lib/backend/prod.ts"] }
   },
   "include": ["src/**/*.ts", "src/**/*.svelte", "shared/**/*.ts", "tests/unit/**/*.ts"]
 }

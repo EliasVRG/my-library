@@ -5,26 +5,9 @@ import { PART_SIZE, type Book, type Change, type ChangesResponse, type Review } 
 import { applyRemote } from "../../../shared/merge";
 import { recordItemId, uploadItemId, type OutboxItem, type RecordItem, type UploadItem } from "../db/idb";
 import type { LocalStore } from "../db/repo";
+import { idleStatus, type Fetcher, type SyncController, type SyncStatus } from "./types";
 
-export type Fetcher = (path: string, init?: RequestInit) => Promise<Response>;
-
-export type SyncState = "idle" | "syncing" | "offline" | "auth" | "error";
-
-export interface SyncStatus {
-  state: SyncState;
-  /** Itens na fila de saída. */
-  pending: number;
-  /** Livros com alguma alteração ainda não confirmada pelo servidor. */
-  pendingIds: Set<string>;
-  /** Itens rejeitados pelo servidor. */
-  failed: number;
-  /** Progresso de upload por livro (0 a 1). */
-  uploads: Map<string, number>;
-  lastSync: number | null;
-  error: string | null;
-  /** Login feito, mas o Worker recusou (segredos do Access ou e-mail não batem). */
-  denied?: boolean;
-}
+export type { Fetcher, SyncController, SyncState, SyncStatus } from "./types";
 
 export const PUSH_BATCH = 20;
 const MAX_BACKOFF = 5 * 60_000;
@@ -58,16 +41,8 @@ export interface EngineOptions {
   partSize?: number;
 }
 
-export class SyncEngine {
-  status: SyncStatus = {
-    state: "idle",
-    pending: 0,
-    pendingIds: new Set(),
-    failed: 0,
-    uploads: new Map(),
-    lastSync: null,
-    error: null,
-  };
+export class SyncEngine implements SyncController {
+  status: SyncStatus = idleStatus();
   private running: Promise<void> | null = null;
   private again = false;
   private timer: ReturnType<typeof setTimeout> | null = null;
@@ -249,7 +224,7 @@ export class SyncEngine {
     }));
     let res: Response;
     try {
-      res = await this.request("/api/push", {
+      res = await this.request("push", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ changes }),
@@ -320,7 +295,7 @@ export class SyncEngine {
     let more = true;
     while (more) {
       const cursor = ((await this.store.db.get("meta", "cursor")) as number | undefined) ?? 0;
-      const res = await this.request(`/api/changes?since=${cursor}`);
+      const res = await this.request(`changes?since=${cursor}`);
       const page = await this.json<ChangesResponse>(res);
       await this.applyPage(page);
       more = page.more;
@@ -413,7 +388,7 @@ export class SyncEngine {
       await this.markFailed(item, "O arquivo deste PDF não está mais neste aparelho.");
       return;
     }
-    const base = `/api/books/${item.book_id}/pdf/uploads`;
+    const base = `books/${item.book_id}/pdf/uploads`;
     const keyQ = `key=${encodeURIComponent(item.key)}`;
     let job: UploadItem = { ...item, parts: [...item.parts] };
 

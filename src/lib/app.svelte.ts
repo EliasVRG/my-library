@@ -1,16 +1,17 @@
 // Estado reativo da interface. A fonte da verdade é o IndexedDB; isto é só um espelho dele.
 
+import { backend } from "$backend";
 import type { Book, Review } from "../../shared/model";
 import { openEstanteDb } from "./db/idb";
 import { LocalStore } from "./db/repo";
 import { PdfFiles } from "./pdf/files";
-import { SyncEngine, type Fetcher, type SyncStatus } from "./sync/engine";
+import { idleStatus, type SyncController, type SyncStatus } from "./sync/types";
 
-const fetcher: Fetcher = (path, init) => fetch(path, { credentials: "same-origin", ...init });
+export { backend };
 
 class AppState {
   store!: LocalStore;
-  engine!: SyncEngine;
+  engine!: SyncController;
   files!: PdfFiles;
 
   ready = $state(false);
@@ -19,15 +20,7 @@ class AppState {
   reviews = $state.raw<Map<string, Review>>(new Map());
   /** Livros cujo PDF atual está neste aparelho → tamanho em bytes. */
   offline = $state.raw<Map<string, number>>(new Map());
-  sync = $state.raw<SyncStatus>({
-    state: "idle",
-    pending: 0,
-    pendingIds: new Set(),
-    failed: 0,
-    uploads: new Map(),
-    lastSync: null,
-    error: null,
-  });
+  sync = $state.raw<SyncStatus>(idleStatus());
   usedBytes = $state(0);
   quota = $state.raw<{ usage: number; quota: number } | null>(null);
   persisted = $state(false);
@@ -37,10 +30,11 @@ class AppState {
 
   async init(): Promise<void> {
     try {
-      const db = await openEstanteDb();
-      this.store = await LocalStore.open(db);
-      this.engine = new SyncEngine(this.store, fetcher);
-      this.files = new PdfFiles(this.store, fetcher);
+      const db = await openEstanteDb(backend.mode === "demo" ? "estante-demo" : "estante");
+      this.store = await LocalStore.open(db, Date.now, backend.storeOptions);
+      await backend.prepare?.(this.store);
+      this.engine = backend.createSync(this.store);
+      this.files = new PdfFiles(this.store, backend.pdfFetcher, backend.hasRemotePdf);
     } catch (e) {
       this.fatal =
         "Não foi possível abrir o armazenamento deste navegador. Se estiver numa janela anônima, abra numa janela normal.";

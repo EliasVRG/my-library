@@ -13,7 +13,11 @@
     "db:migrate:local": "wrangler d1 migrations apply estante --local",
     "db:migrate:remote": "wrangler d1 migrations apply estante --remote",
     "deploy": "npm run build && wrangler deploy",
-    "cf-typegen": "wrangler types worker/worker-configuration.d.ts"
+    "cf-typegen": "wrangler types worker/worker-configuration.d.ts",
+    "build:demo": "vite build --mode demo && node scripts/check-demo-bundle.mjs",
+    "deploy:demo": "npm run build:demo && wrangler deploy --config wrangler.demo.jsonc",
+    "preview:demo": "vite preview --mode demo",
+    "demo:pdfs": "node scripts/demo-pdfs.mjs"
   },
   "dependencies": {
     "@fontsource-variable/geist": "5.3.0",

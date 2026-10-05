@@ -28,6 +28,14 @@ export interface NewBookInput {
   file?: File | Blob & { name?: string };
 }
 
+export interface StoreOptions {
+  /**
+   * Sem servidor (modo demo): nada entra na fila de saída e PDFs adicionados
+   * ficam prontos na hora, porque não há nuvem para onde enviar.
+   */
+  localOnly?: boolean;
+}
+
 export class LocalStore {
   private lastTs = 0;
   private listeners = new Set<() => void>();
@@ -37,6 +45,7 @@ export class LocalStore {
     readonly db: EstanteDB,
     readonly deviceId: string,
     private readonly now: () => number = Date.now,
+    readonly options: StoreOptions = {},
   ) {
     if (typeof BroadcastChannel !== "undefined") {
       this.channel = new BroadcastChannel(`estante-${db.name}`);
@@ -44,13 +53,13 @@ export class LocalStore {
     }
   }
 
-  static async open(db: EstanteDB, now: () => number = Date.now): Promise<LocalStore> {
+  static async open(db: EstanteDB, now: () => number = Date.now, options: StoreOptions = {}): Promise<LocalStore> {
     let deviceId = (await db.get("meta", "deviceId")) as string | undefined;
     if (!deviceId) {
       deviceId = crypto.randomUUID();
       await db.put("meta", deviceId, "deviceId");
     }
-    return new LocalStore(db, deviceId, now);
+    return new LocalStore(db, deviceId, now, options);
   }
 
   /** Avisa a interface (nesta aba e nas outras) que algo mudou. */
@@ -118,6 +127,7 @@ export class LocalStore {
     const fields = { ...emptyBookData(), ...data } as Record<string, unknown>;
     const clock = this.stamp(Object.keys(fields));
     Object.assign(book, fields, { field_clock: clock });
+    if (this.options.localOnly && data.pdf_key) book.pdf_ready_key = data.pdf_key;
     await tx.objectStore("books").put(book);
     await this.enqueueRecord(tx, "books", id, fields, clock, now);
     if (input.file && data.pdf_key) await this.storePdfAndQueue(tx, id, data.pdf_key, input.file, data.file_name!);
@@ -190,7 +200,13 @@ export class LocalStore {
     const key = pdfKeyFor(bookId, crypto.randomUUID());
     const fields = { pdf_key: key, file_name: file.name ?? "livro.pdf", pdf_size: file.size, pages: 0, current_page: 1 };
     const clock = this.stamp(Object.keys(fields));
-    await tx.objectStore("books").put({ ...book, ...fields, field_clock: { ...book.field_clock, ...clock }, updated_at: this.now() });
+    await tx.objectStore("books").put({
+      ...book,
+      ...fields,
+      ...(this.options.localOnly ? { pdf_ready_key: key } : {}),
+      field_clock: { ...book.field_clock, ...clock },
+      updated_at: this.now(),
+    });
     await this.enqueueRecord(tx, "books", bookId, fields, clock);
     await this.storePdfAndQueue(tx, bookId, key, file, fields.file_name);
     await tx.done;
@@ -240,7 +256,7 @@ export class LocalStore {
     await tx.objectStore("outbox").delete(recordItemId("reviews", bookId));
     // Só a exclusão importa daqui em diante; o resto pendente seria descartado pelo servidor.
     const prev = (await tx.objectStore("outbox").get(recordItemId("books", bookId))) as RecordItem | undefined;
-    await tx.objectStore("outbox").put({
+    if (!this.options.localOnly) await tx.objectStore("outbox").put({
       id: recordItemId("books", bookId),
       kind: "record",
       table: "books",
@@ -314,6 +330,7 @@ export class LocalStore {
 
   /** Junta com o que já estava pendente para o mesmo registro: fica o valor mais recente de cada campo. */
   private async enqueueRecord(tx: Tx, table: Table, rid: string, fields: Record<string, unknown>, clock: FieldClock, createdAt?: number) {
+    if (this.options.localOnly) return;
     const store = tx.objectStore("outbox");
     const id = recordItemId(table, rid);
     const prev = (await store.get(id)) as RecordItem | undefined;
@@ -334,6 +351,7 @@ export class LocalStore {
   private async storePdfAndQueue(tx: Tx, bookId: string, key: string, file: Blob, fileName: string) {
     const now = this.now();
     await tx.objectStore("pdfs").put({ book_id: bookId, key, blob: file, size: file.size, file_name: fileName, saved_at: now, accessed_at: now });
+    if (this.options.localOnly) return;
     const upload: UploadItem = { id: uploadItemId(bookId), kind: "upload", book_id: bookId, key, upload_id: null, parts: [], attempts: 0, next_at: 0 };
     await tx.objectStore("outbox").put(upload);
   }

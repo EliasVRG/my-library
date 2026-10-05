@@ -3,7 +3,7 @@
 import { pdfState, type Book } from "../../../shared/model";
 import { uploadItemId, type PdfFile } from "../db/idb";
 import type { LocalStore } from "../db/repo";
-import type { Fetcher } from "../sync/engine";
+import type { Fetcher } from "../sync/types";
 
 export class PdfError extends Error {
   constructor(
@@ -19,6 +19,8 @@ export class PdfFiles {
   constructor(
     private readonly store: LocalStore,
     private readonly fetcher: Fetcher,
+    /** Há cópia fora do aparelho? Se não, liberar espaço apagaria o único arquivo. */
+    private readonly hasRemote: (bookId: string) => boolean = () => true,
   ) {}
 
   onChange(fn: () => void): () => void {
@@ -68,7 +70,7 @@ export class PdfFiles {
     }
     let res: Response;
     try {
-      res = await this.fetcher(`/api/books/${book.id}/pdf`, { redirect: "manual" });
+      res = await this.fetcher(`books/${book.id}/pdf`, { redirect: "manual" });
     } catch {
       throw new PdfError("offline", "Sem conexão. Este PDF ainda não foi baixado para este aparelho.");
     }
@@ -101,7 +103,7 @@ export class PdfFiles {
 
   /** Libera o espaço do PDF neste aparelho. Não deixa apagar um PDF que ainda não subiu. */
   async release(bookId: string): Promise<boolean> {
-    if (await this.store.db.get("outbox", uploadItemId(bookId))) return false;
+    if (!this.hasRemote(bookId) || (await this.store.db.get("outbox", uploadItemId(bookId)))) return false;
     await this.store.db.delete("pdfs", bookId);
     this.changed();
     return true;
@@ -113,7 +115,7 @@ export class PdfFiles {
     let freed = 0;
     let cursor = await tx.store.openCursor();
     while (cursor) {
-      if (!pendingUploads.has(uploadItemId(cursor.value.book_id))) {
+      if (this.hasRemote(cursor.value.book_id) && !pendingUploads.has(uploadItemId(cursor.value.book_id))) {
         freed += cursor.value.size;
         await cursor.delete();
       }

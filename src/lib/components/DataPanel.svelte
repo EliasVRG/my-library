@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { app } from "../app.svelte";
+  import { app, backend } from "../app.svelte";
   import { ImportError, buildExportData, buildZip, parseImport, type PdfForExport } from "../export/backup";
   import { saveFile } from "../download";
   import { formatBytes } from "../pdf/files";
@@ -104,6 +104,7 @@
   <div class="panel">
     <h2 id="data-title">Dados e backup</h2>
 
+    {#if backend.mode === "prod"}
     <section aria-labelledby="h-sync">
       <h3 id="h-sync">Sincronização</h3>
       <p class="sub" role="status">{syncText}</p>
@@ -115,13 +116,14 @@
       {/if}
       <div class="acts-end" style="justify-content:flex-start">
         {#if app.sync.state === "auth"}
-          <a class="btn small" href="/api/login">Entrar de novo</a>
+          <a class="btn small" href={backend.loginUrl ?? "/"}>Entrar de novo</a>
         {:else}
           <button class="btn small" type="button" onclick={() => void app.engine.retryNow()} disabled={app.sync.state === "syncing"}>Sincronizar agora</button>
         {/if}
       </div>
     </section>
     <hr />
+    {/if}
 
     <section aria-labelledby="h-storage">
       <h3 id="h-storage">Espaço neste aparelho</h3>
