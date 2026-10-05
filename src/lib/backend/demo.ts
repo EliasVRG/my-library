@@ -1,7 +1,7 @@
 // Demo pública: tudo fica no IndexedDB deste navegador. Sem motor de sincronização, sem /api.
 // Os PDFs de exemplo são arquivos estáticos em /demo/.
 
-import { DEMO_PDFS, resetDemo, seedDemo } from "../../demo/seed";
+import { DEMO_PDFS, attachMissingDemoPdfs, resetDemo, seedDemo } from "../../demo/seed";
 import { idleStatus, type Fetcher, type SyncController } from "../sync/types";
 import type { Backend } from "./types";
 
@@ -38,7 +38,10 @@ export const backend: Backend = {
   loginUrl: null,
   hasRemotePdf: (bookId) => bookId in DEMO_PDFS,
   async prepare(store) {
-    if (await store.db.get("meta", SEEDED)) return;
+    if (await store.db.get("meta", SEEDED)) {
+      await attachMissingDemoPdfs(store);
+      return;
+    }
     await seedDemo(store);
     await store.db.put("meta", true, SEEDED);
   },

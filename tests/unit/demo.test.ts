@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { hasReview, pdfState } from "../../shared/model";
-import { DEMO_PDFS, resetDemo, seedDemo } from "../../src/demo/seed";
+import { DEMO_PDFS, attachMissingDemoPdfs, resetDemo, seedDemo } from "../../src/demo/seed";
 import { openEstanteDb } from "../../src/lib/db/idb";
 import { LocalStore } from "../../src/lib/db/repo";
 import { PdfFiles } from "../../src/lib/pdf/files";
@@ -36,6 +36,24 @@ describe("estante de exemplo", () => {
     expect(withPdf.map((b) => b.file_name)).toEqual(["dom-casmurro.pdf"]);
     expect(withPdf[0].pdf_size).toBe(1234);
     expect(Object.keys(DEMO_PDFS)).toContain(withPdf[0].id);
+  });
+
+  it("liga PDFs que passaram a existir depois, mas não devolve um PDF removido pelo visitante", async () => {
+    const store = await fresh();
+    const nothing = (async () => new Response("<!doctype html>", { headers: { "content-type": "text/html" } })) as typeof fetch;
+    await seedDemo(store, nothing);
+    expect((await store.listBooks()).filter((b) => b.pdf_key)).toHaveLength(0);
+
+    // O visitante anexa e depois remove o PDF do Dom Casmurro: isso é escolha dele.
+    const dom = "d0e5a000-0000-4000-8000-000000000001";
+    await store.attachPdf(dom, new File(["%PDF"], "meu.pdf"));
+    await store.removePdf(dom);
+
+    const all = (async () => new Response(null, { headers: { "content-type": "application/pdf", "content-length": "10" } })) as typeof fetch;
+    expect(await attachMissingDemoPdfs(store, all)).toBe(2);
+    const withPdf = (await store.listBooks()).filter((b) => pdfState(b) === "ready").map((b) => b.file_name).sort();
+    expect(withPdf).toEqual(["memorias-postumas-de-bras-cubas.pdf", "o-alienista.pdf"]);
+    expect(await attachMissingDemoPdfs(store, all)).toBe(0);
   });
 
   it("restaurar apaga o que o visitante fez e recoloca o exemplo", async () => {

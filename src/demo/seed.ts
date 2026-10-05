@@ -203,6 +203,29 @@ export async function seedDemo(store: LocalStore, fetchImpl: typeof fetch = fetc
   await tx.done;
 }
 
+/**
+ * Liga os PDFs de exemplo que passaram a existir depois do primeiro acesso (por exemplo,
+ * baixados depois de a estante já ter sido criada). Só mexe em livros cujo PDF nunca foi
+ * alterado pelo visitante: um PDF removido de propósito não volta.
+ */
+export async function attachMissingDemoPdfs(store: LocalStore, fetchImpl: typeof fetch = fetch): Promise<number> {
+  const candidates = [];
+  for (const id of Object.keys(DEMO_PDFS)) {
+    const book = await store.db.get("books", id);
+    if (book && book.deleted_at == null && !book.pdf_key && book.field_clock.pdf_key?.[1] === "demo") candidates.push(book);
+  }
+  let attached = 0;
+  for (const book of candidates) {
+    const size = await probe(DEMO_PDFS[book.id], fetchImpl);
+    if (size == null) continue;
+    const key = pdfKeyFor(book.id, book.id.replace("d0e5a000", "f11e0000"));
+    await store.db.put("books", { ...book, pdf_key: key, pdf_ready_key: key, file_name: DEMO_PDFS[book.id], pdf_size: size });
+    attached++;
+  }
+  if (attached) store.notify();
+  return attached;
+}
+
 /** Apaga os dados deste navegador (livros, resenhas, PDFs) e recoloca a estante de exemplo. */
 export async function resetDemo(store: LocalStore, fetchImpl: typeof fetch = fetch): Promise<void> {
   const tx = store.db.transaction(["books", "reviews", "pdfs", "outbox"], "readwrite");
