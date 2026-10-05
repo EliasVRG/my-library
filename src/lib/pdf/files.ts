@@ -60,7 +60,8 @@ export class PdfFiles {
     return this.download(book);
   }
 
-  async download(book: Book): Promise<Blob> {
+  /** Baixa da nuvem. `keep: false` só devolve o arquivo, sem guardar no aparelho. */
+  async download(book: Book, { keep = true }: { keep?: boolean } = {}): Promise<Blob> {
     if (!book.pdf_key) throw new PdfError("missing", "Este livro ainda não tem PDF.");
     if (pdfState(book) === "uploading") {
       throw new PdfError("uploading", "O PDF ainda está sendo enviado por outro aparelho. Tente de novo quando ele sincronizar.");
@@ -77,6 +78,7 @@ export class PdfFiles {
     if (res.status === 404) throw new PdfError("missing", "O PDF não foi encontrado no servidor.");
     if (!res.ok) throw new PdfError("server", `O servidor respondeu ${res.status}. Tente de novo.`);
     const blob = await res.blob();
+    if (!keep) return blob;
     const key = res.headers.get("x-pdf-key") ?? book.pdf_key;
     const now = Date.now();
     await this.store.db.put("pdfs", {
@@ -90,6 +92,11 @@ export class PdfFiles {
     });
     this.changed();
     return blob;
+  }
+
+  /** O arquivo do livro, do aparelho se houver, senão da nuvem (sem guardar cópia). */
+  async fileFor(book: Book): Promise<Blob> {
+    return (await this.local(book))?.blob ?? (await this.download(book, { keep: false }));
   }
 
   /** Libera o espaço do PDF neste aparelho. Não deixa apagar um PDF que ainda não subiu. */

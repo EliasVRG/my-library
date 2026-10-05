@@ -2,6 +2,7 @@
   import { untrack } from "svelte";
   import { REVIEW_FIELDS, pdfState, type Book, type ReviewField, type Status } from "../../../shared/model";
   import { app } from "../app.svelte";
+  import { saveFile } from "../download";
   import { formatBytes } from "../pdf/files";
   import type { Saver } from "../saver.svelte";
 
@@ -29,6 +30,11 @@
   let deleteError = $state("");
   let offlineBusy = $state(false);
   let offlineMsg = $state("");
+  let offlineOk = $state(false);
+  let saving = $state(false);
+  let savedCopy = $state(false);
+  let removingPdf = $state(false);
+  let pdfBusy = $state(false);
   const areas: Partial<Record<ReviewField | "category", HTMLElement>> = $state({});
 
   const pdf = $derived(pdfState(book));
@@ -81,6 +87,7 @@
 
   async function toggleOffline() {
     offlineBusy = true;
+    offlineOk = false;
     offlineMsg = "";
     try {
       if (offlineSize !== undefined) {
@@ -93,6 +100,41 @@
       offlineMsg = e instanceof Error ? e.message : "Não foi possível baixar.";
     } finally {
       offlineBusy = false;
+    }
+  }
+
+  /** Entrega o PDF para o usuário guardar onde quiser (vem do aparelho ou, se não houver, da nuvem). */
+  async function saveCopy() {
+    saving = true;
+    offlineMsg = "";
+    try {
+      const blob = await app.files.fileFor(book);
+      const name = book.file_name || `${book.title.replace(/[\\/:*?"<>|]+/g, " ").trim() || "livro"}.pdf`;
+      saveFile(blob, /\.pdf$/i.test(name) ? name : `${name}.pdf`, "application/pdf");
+      savedCopy = true;
+      offlineOk = true;
+      offlineMsg = "Cópia enviada para a pasta de downloads.";
+    } catch (e) {
+      offlineOk = false;
+      offlineMsg = e instanceof Error ? e.message : "Não foi possível salvar o arquivo.";
+    } finally {
+      saving = false;
+    }
+  }
+
+  async function removePdf() {
+    pdfBusy = true;
+    try {
+      await app.store.removePdf(id);
+      removingPdf = false;
+      offlineOk = true;
+      offlineMsg = "PDF removido. Ele sai da nuvem na próxima sincronização.";
+    } catch (e) {
+      console.error(e);
+      offlineOk = false;
+      offlineMsg = "Não foi possível remover agora. Tente de novo.";
+    } finally {
+      pdfBusy = false;
     }
   }
 
@@ -195,10 +237,30 @@
             {offlineBusy ? "Baixando…" : "Baixar para ler offline"}
           </button>
         {/if}
+        <button class="btn small" type="button" disabled={saving} onclick={saveCopy} title="Salvar uma cópia do PDF neste dispositivo">
+          {saving ? "Preparando…" : "Salvar arquivo"}
+        </button>
         <button class="btn small ghost" type="button" onclick={onattach}>Trocar PDF</button>
       </div>
-      {#if offlineMsg}<p class="err" role="alert">{offlineMsg}</p>{/if}
+      {#if removingPdf}
+        <div class="confirm" role="alertdialog" aria-labelledby="rm-q">
+          <span id="rm-q">
+            Remover o PDF da nuvem e de todos os aparelhos? O livro, a resenha e o progresso ficam.
+            {savedCopy ? "Você já salvou uma cópia." : "Se quiser guardar o arquivo, salve uma cópia antes."}
+          </span>
+          <div class="acts-end">
+            {#if !savedCopy}
+              <button class="btn ghost" type="button" disabled={saving} onclick={saveCopy}>{saving ? "Preparando…" : "Salvar cópia antes"}</button>
+            {/if}
+            <button class="btn ghost" type="button" onclick={() => (removingPdf = false)}>Cancelar</button>
+            <button class="btn danger solid" type="button" disabled={pdfBusy} onclick={removePdf}>Remover PDF</button>
+          </div>
+        </div>
+      {:else}
+        <div><button class="btn danger" type="button" onclick={() => (removingPdf = true)}>Remover PDF</button></div>
+      {/if}
     {/if}
+    {#if offlineMsg}<p class={offlineOk ? "ok" : "err"} role={offlineOk ? "status" : "alert"}>{offlineMsg}</p>{/if}
   </section>
 
   <div class="danger-zone">

@@ -301,6 +301,43 @@ describe("upload de PDF", () => {
   });
 });
 
+describe("remover só o PDF", () => {
+  it("tira o PDF da nuvem e do aparelho, mas mantém livro, resenha e progresso", async () => {
+    const server = new FakeServer();
+    const { store, engine } = await device(server, 10);
+    const b = await store.createBook({ title: "Guardar", file: pdfFile("conteudo") });
+    await engine.sync();
+    await store.updateBook(b.id, { current_page: 3, status: "lendo" });
+    await store.updateReview(b.id, { resumo: "fica" });
+    await engine.sync();
+    const files = new PdfFiles(store, server.fetcher);
+    expect(await (await files.fileFor((await store.getBook(b.id))!)).text()).toBe("conteudo");
+
+    await store.removePdf(b.id);
+    const local = (await store.getBook(b.id))!;
+    expect(local.pdf_key).toBeNull();
+    expect(local.current_page).toBe(3);
+    expect(await store.db.get("pdfs", b.id)).toBeUndefined();
+    await engine.sync();
+    const remote = server.books.get(b.id)!;
+    expect(remote.pdf_key).toBeNull();
+    expect(remote.status).toBe("lendo");
+    expect(server.reviews.get(b.id)?.resumo).toBe("fica");
+    expect(await store.outbox()).toHaveLength(0);
+  });
+
+  it("cancela um upload que ainda não tinha subido", async () => {
+    const server = new FakeServer();
+    const { store, engine } = await device(server, 10);
+    const b = await store.createBook({ title: "Offline", file: pdfFile("abc") });
+    await store.removePdf(b.id);
+    expect(await store.db.get("outbox", uploadItemId(b.id))).toBeUndefined();
+    await engine.sync();
+    expect(server.calls.some((c) => c.includes("/uploads"))).toBe(false);
+    expect(server.books.get(b.id)?.pdf_key).toBeNull();
+  });
+});
+
 describe("PDFs offline", () => {
   it("guarda o PDF aberto e não deixa liberar um PDF que ainda não subiu", async () => {
     const server = new FakeServer();

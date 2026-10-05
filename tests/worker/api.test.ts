@@ -99,6 +99,20 @@ describe("sincronização", () => {
     expect(b.pdf_ready_key).toBeNull();
   });
 
+  it("remover o PDF (pdf_key: null) apaga o objeto do R2 e mantém o livro", async () => {
+    const id = uuid();
+    const key = keyFor(id);
+    await createBook(id, { pdf_key: key });
+    await uploadPdf(id, key, new Uint8Array([1, 2, 3]));
+    await push([{ table: "books", id, fields: { pdf_key: null, file_name: "", pdf_size: 0 }, clock: { pdf_key: C(3000), file_name: C(3000), pdf_size: C(3000) } }]);
+    expect(await env.BUCKET.head(key)).toBeNull();
+    const b = (await changes()).books.find((x) => x.id === id)!;
+    expect(b.deleted_at).toBeNull();
+    expect(b.pdf_key).toBeNull();
+    expect(b.pdf_ready_key).toBeNull();
+    expect((await call(`/api/books/${id}/pdf`)).status).toBe(404);
+  });
+
   it("rejeita lotes grandes demais e dados inválidos", async () => {
     const many = Array.from({ length: 21 }, () => ({ table: "books", id: uuid(), fields: {}, clock: {} }));
     expect((await push(many)).status).toBe(400);

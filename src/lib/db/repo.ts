@@ -197,6 +197,33 @@ export class LocalStore {
     this.notify();
   }
 
+  /**
+   * Tira o PDF do livro (nuvem e aparelho), mantendo livro, resenha e progresso.
+   * O servidor apaga o objeto do R2 quando recebe `pdf_key: null`.
+   */
+  async removePdf(bookId: string): Promise<void> {
+    const tx = this.db.transaction(["books", "outbox", "pdfs"], "readwrite");
+    const book = await tx.objectStore("books").get(bookId);
+    if (!book || book.deleted_at != null || !book.pdf_key) {
+      await tx.done;
+      return;
+    }
+    const fields = { pdf_key: null, file_name: "", pdf_size: 0 };
+    const clock = this.stamp(Object.keys(fields));
+    await tx.objectStore("books").put({
+      ...book,
+      ...fields,
+      pdf_ready_key: null,
+      field_clock: { ...book.field_clock, ...clock },
+      updated_at: this.now(),
+    });
+    await this.enqueueRecord(tx, "books", bookId, fields, clock);
+    await tx.objectStore("pdfs").delete(bookId);
+    await tx.objectStore("outbox").delete(uploadItemId(bookId));
+    await tx.done;
+    this.notify();
+  }
+
   async deleteBook(bookId: string): Promise<void> {
     const tx = this.db.transaction(["books", "reviews", "outbox", "pdfs"], "readwrite");
     const book = await tx.objectStore("books").get(bookId);

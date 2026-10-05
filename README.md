@@ -119,6 +119,7 @@ Pronto: abra `https://my-library.eliasvictor2452.workers.dev`, entre com o códi
 
 ## Backup
 
+- **Um PDF só:** no painel do livro, seção *PDF* → **Salvar arquivo** baixa o PDF com o nome original. **Remover PDF** tira o arquivo da nuvem e de todos os aparelhos, mantendo o livro, a resenha e o progresso (a confirmação oferece salvar uma cópia antes).
 - **Pelo app:** *Dados e backup → Exportar .zip*. O zip traz uma resenha por livro em Markdown (com front matter: título, autor, categoria, situação, nota, datas) e o `estante.json` com todos os dados. Marque "Incluir os PDFs" para levar os arquivos também.
 - **Restaurar ou migrar:** *Dados e backup → Importar* aceita o `estante.json` ou o próprio zip. Nada é apagado: cada campo fica com a versão mais recente. Se o PDF de um livro ainda existir no R2, ele volta a ficar disponível sozinho.
 - **Banco inteiro:** `npx wrangler d1 export estante --remote --output=backups/estante.sql` (a pasta `backups/` está no `.gitignore`). O D1 também tem *Time Travel*: `npx wrangler d1 time-travel restore estante --timestamp=…` volta o banco a um ponto no passado (7 dias no plano gratuito, 30 no pago).

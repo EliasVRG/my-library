@@ -1,6 +1,7 @@
 <script lang="ts">
   import { app } from "../app.svelte";
   import { ImportError, buildExportData, buildZip, parseImport, type PdfForExport } from "../export/backup";
+  import { saveFile } from "../download";
   import { formatBytes } from "../pdf/files";
 
   let { open = $bindable() }: { open: boolean } = $props();
@@ -47,15 +48,6 @@
     freeMsg = freed ? `${formatBytes(freed)} liberados. Os PDFs continuam na nuvem.` : "Nada para liberar.";
   }
 
-  function download(bytes: Uint8Array, name: string) {
-    const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: "application/zip" }));
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = name;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 10_000);
-  }
-
   async function exportAll() {
     exporting = true;
     exportMsg = null;
@@ -67,8 +59,7 @@
       if (includePdfs) {
         for (const book of books.filter((b) => b.pdf_key)) {
           try {
-            const local = await app.files.local(book);
-            const blob = local?.blob ?? (await app.files.download(book));
+            const blob = await app.files.fileFor(book);
             pdfs.push({ book, data: new Uint8Array(await blob.arrayBuffer()) });
           } catch {
             missing.push(book.title);
@@ -76,7 +67,7 @@
         }
       }
       const zip = buildZip(data, pdfs);
-      download(zip, `estante-${new Date().toISOString().slice(0, 10)}.zip`);
+      saveFile(zip, `estante-${new Date().toISOString().slice(0, 10)}.zip`, "application/zip");
       exportMsg = missing.length
         ? { ok: false, text: `Exportado, mas ${missing.length} PDF(s) não puderam ser incluídos (sem conexão?): ${missing.join(", ")}.` }
         : { ok: true, text: `Exportados ${data.books.length} livros${includePdfs ? ` e ${pdfs.length} PDFs` : ""}.` };
