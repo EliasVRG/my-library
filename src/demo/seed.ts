@@ -41,8 +41,8 @@ const BOOKS: SeedBook[] = [
     author: "Machado de Assis",
     category: "Romance",
     status: "lendo",
-    pages: 180,
-    current_page: 62,
+    pages: 99, // edição da Biblioteca Nacional no Domínio Público
+    current_page: 38,
     ago: 40,
     review: {
       resumo:
@@ -80,6 +80,8 @@ const BOOKS: SeedBook[] = [
     category: "Romance",
     status: "lido",
     rating: 5,
+    pages: 105,
+    current_page: 105,
     ago: 20 * DAY,
     review: {
       resumo:
@@ -103,6 +105,8 @@ const BOOKS: SeedBook[] = [
     category: "Novela",
     status: "lido",
     rating: 4,
+    pages: 26,
+    current_page: 26,
     ago: 34 * DAY,
     review: {
       resumo:
