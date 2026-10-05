@@ -22,6 +22,8 @@ export interface SyncStatus {
   uploads: Map<string, number>;
   lastSync: number | null;
   error: string | null;
+  /** Login feito, mas o Worker recusou (segredos do Access ou e-mail não batem). */
+  denied?: boolean;
 }
 
 export const PUSH_BATCH = 20;
@@ -40,7 +42,15 @@ class HttpError extends Error {
     super(message);
   }
 }
-class AuthError extends Error {}
+/** Sem acesso à API. `denied`: o Access deixou passar, mas o Worker recusou (configuração). */
+class AuthError extends Error {
+  constructor(
+    message: string,
+    readonly denied = false,
+  ) {
+    super(message);
+  }
+}
 
 export interface EngineOptions {
   now?: () => number;
@@ -136,7 +146,7 @@ export class SyncEngine {
       if (item.next_at > 0 && !item.failed) await tx.store.put({ ...item, next_at: 0 });
     }
     await tx.done;
-    if (this.status.state === "auth") this.set({ state: "idle", error: null });
+    if (this.status.state === "auth") this.set({ state: "idle", error: null, denied: false });
     return this.sync();
   }
 
@@ -171,7 +181,7 @@ export class SyncEngine {
       await this.pushUploads();
       this.set({ state: "idle", lastSync: this.now(), error: null });
     } catch (e) {
-      if (e instanceof AuthError) this.set({ state: "auth", error: e.message });
+      if (e instanceof AuthError) this.set({ state: "auth", error: e.message, denied: e.denied });
       else if (e instanceof TypeError) this.set({ state: "offline", error: null });
       else this.set({ state: "error", error: e instanceof Error ? e.message : String(e) });
     } finally {
@@ -191,6 +201,10 @@ export class SyncEngine {
     // `manual`: se a sessão do Access expirou, ele responde com redirect para o login.
     // Seguir esse redirect falharia por CORS e pareceria falta de rede.
     const res = await this.fetcher(path, { redirect: "manual", ...init });
+    if (res.status === 403 && res.headers.get("content-type")?.includes("application/json")) {
+      const { error } = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new AuthError(`O servidor recusou o login: ${error ?? "acesso negado"}.`, true);
+    }
     if (res.type === "opaqueredirect" || res.status === 401 || res.status === 403 || (res.status >= 300 && res.status < 400)) {
       throw new AuthError("Sua sessão expirou. Entre de novo para sincronizar.");
     }

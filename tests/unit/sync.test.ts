@@ -143,7 +143,20 @@ describe("fila de saída", () => {
     await engine.retryNow();
     expect(await store.outbox()).toHaveLength(0);
   });
+  it("login recusado pelo Worker (403 com JSON) é diferente de sessão expirada", async () => {
+    const server = new FakeServer();
+    const { store, engine } = await device(server);
+    await store.createBook({ title: "X" });
+    server.intercept = () =>
+      new Response(JSON.stringify({ error: "E-mail não autorizado" }), { status: 403, headers: { "content-type": "application/json" } });
+    await engine.sync();
+    expect(engine.status.state).toBe("auth");
+    expect(engine.status.denied).toBe(true);
+    expect(engine.status.error).toContain("E-mail não autorizado");
+    expect(await store.outbox()).toHaveLength(1);
+  });
 });
+
 
 describe("dois aparelhos", () => {
   it("resenha no celular e páginas no computador não se sobrescrevem", async () => {

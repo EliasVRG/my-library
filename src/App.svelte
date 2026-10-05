@@ -80,6 +80,14 @@
 
   {#if app.fatal}
     <div class="notice warn" role="alert">{app.fatal}</div>
+  {:else if app.sync.state === "auth" && app.sync.denied}
+    <div class="notice warn" role="alert">
+      <span>
+        {app.sync.error} Confira os segredos <code>ACCESS_TEAM_DOMAIN</code>, <code>ACCESS_AUD</code> e
+        <code>ALLOWED_EMAIL</code> do Worker. Suas alterações continuam salvas neste aparelho.
+      </span>
+      <button class="btn small" type="button" onclick={() => void app.engine.retryNow()}>Tentar de novo</button>
+    </div>
   {:else if app.sync.state === "auth"}
     <div class="notice warn" role="status">
       <span>Sua sessão expirou. Suas alterações estão salvas neste aparelho e sobem assim que você entrar de novo.</span>

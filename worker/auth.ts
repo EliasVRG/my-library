@@ -1,7 +1,7 @@
 // Validação do JWT que o Cloudflare Access injeta em toda requisição autorizada.
 // https://developers.cloudflare.com/cloudflare-one/identity/authorization-cookie/validating-json/
 
-import { createRemoteJWKSet, jwtVerify, type JWTVerifyGetKey } from "jose";
+import { createRemoteJWKSet, decodeJwt, jwtVerify, type JWTVerifyGetKey } from "jose";
 import type { AppEnv } from "./env";
 
 export interface AccessConfig {
@@ -48,12 +48,39 @@ export async function verifyAccessToken(
     });
     const email = typeof payload.email === "string" ? payload.email.toLowerCase() : "";
     if (!email || !config.allowedEmails.includes(email)) {
+      logRejection("email", { recebido: maskEmail(email), permitidos: config.allowedEmails.map(maskEmail) });
       return { ok: false, status: 403, error: "E-mail não autorizado" };
     }
     return { ok: true, email };
-  } catch {
+  } catch (e) {
+    // Registra qual verificação falhou (nunca o token). Emissor e AUD não são segredos.
+    const err = e as { code?: string; claim?: string; reason?: string; message?: string };
+    let got: { iss?: unknown; aud?: unknown } = {};
+    try {
+      const c = decodeJwt(token);
+      got = { iss: c.iss, aud: c.aud };
+    } catch {
+      // token ilegível: o código do erro já diz isso
+    }
+    logRejection("token", {
+      codigo: err.code ?? err.message,
+      campo: err.claim,
+      esperado: { iss: config.teamDomain, aud: config.aud },
+      recebido: got,
+    });
     return { ok: false, status: 403, error: "Token do Access inválido" };
   }
+}
+
+function logRejection(motivo: string, detalhes: Record<string, unknown>) {
+  console.warn(JSON.stringify({ access: "rejeitado", motivo, ...detalhes }));
+}
+
+/** "fulano@gmail.com" → "fu…@gmail.com": suficiente para achar erro de digitação. */
+function maskEmail(email: string): string {
+  const [user, domain] = email.split("@");
+  if (!domain) return email ? "(sem @)" : "(vazio)";
+  return `${user.slice(0, 2)}…@${domain}`;
 }
 
 export async function authenticate(request: Request, env: AppEnv): Promise<AuthResult> {

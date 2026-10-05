@@ -31,7 +31,7 @@
   const pdfCount = $derived(app.books.filter((b) => b.pdf_key).length);
   const syncText = $derived.by(() => {
     const s = app.sync;
-    if (s.state === "auth") return "Sessão do Cloudflare Access expirada.";
+    if (s.state === "auth") return s.denied ? (s.error ?? "O servidor recusou o login.") : "Sessão do Cloudflare Access expirada.";
     if (s.state === "offline") return "Sem conexão. As alterações ficam guardadas neste aparelho.";
     if (s.state === "error") return `Último erro: ${s.error ?? "desconhecido"}. Vai tentar de novo sozinho.`;
     if (s.state === "syncing") return "Sincronizando agora…";
