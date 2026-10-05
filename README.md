@@ -20,7 +20,7 @@ Biblioteca pessoal de PDFs para estudo: estante com filtros, leitor de PDF que l
 
 - Node.js **22.13 ou mais novo**.
 - npm **11** (o npm 10.9 quebra ao resolver as dependências deste projeto: `Cannot read properties of null (reading 'edgesOut')`). Use `npm install -g npm@11` ou rode tudo com `npx npm@11 …`.
-- Uma conta Cloudflare com um **domínio ativo** nela (o Access protege hostnames do seu domínio).
+- Uma conta Cloudflare (o plano gratuito basta). Não precisa de domínio próprio: o app fica em `my-library.<seu-subdominio>.workers.dev` (o desta conta é `https://my-library.eliasvictor2452.workers.dev`).
 
 ## Rodar localmente
 
@@ -57,7 +57,7 @@ npx wrangler login
 npx wrangler d1 create estante
 ```
 
-Copie o `database_id` que aparece na saída para `wrangler.jsonc`, dentro de `d1_databases` (o ID não é segredo, mas é por isso que ele não vem no repositório):
+Quando o wrangler perguntar se deve adicionar o banco à configuração por você, responda **não**: ele cria um segundo binding com outro nome, e com a opção de usar o banco remoto em desenvolvimento, o que faria o `npm run dev` e os testes gravarem no banco de produção. Em vez disso, copie o `database_id` que aparece na saída para `wrangler.jsonc`, dentro de `d1_databases` (o ID não é segredo, mas é por isso que ele não vem no repositório):
 
 ```jsonc
 "d1_databases": [{ "binding": "DB", "database_name": "estante", "database_id": "COLE-AQUI", "migrations_dir": "migrations" }]
@@ -76,38 +76,46 @@ Migrações novas vão em `migrations/NNNN_descricao.sql` e são aplicadas com o
 
 ## Deploy
 
-1. Em `wrangler.jsonc`, troque `estante.example.com` em `routes` pelo (sub)domínio que você vai usar. O `workers_dev` e o `preview_urls` estão desligados: o Access protege o seu domínio, não as URLs `*.workers.dev`.
-2. Publique:
+O app é publicado em `https://my-library.eliasvictor2452.workers.dev`. Se a conta ainda não tem um subdomínio `workers.dev`, o painel pede para escolher um na primeira vez que você abre **Workers & Pages**.
 
-   ```sh
-   npm run deploy
-   ```
+**Pelo terminal:**
 
-   Até você configurar os segredos (passos seguintes), a API responde `500 Access não configurado`. Ela falha fechada.
+```sh
+npm run deploy
+```
+
+**Ou automático a cada push (Workers Builds):** em **Workers & Pages → Create → Import a repository**, escolha o repositório e configure:
+
+| Campo | Valor |
+|---|---|
+| Nome do Worker | `my-library` (igual ao `name` do `wrangler.jsonc`) |
+| Build command | `npm run build` |
+| Deploy command | `npx wrangler deploy` |
+
+O build não aplica migrações do D1: quando houver uma nova em `migrations/`, rode `npm run db:migrate:remote` antes do push. Desative os builds de branches que não sejam a `main` (as URLs de preview estão desligadas no `wrangler.jsonc`).
+
+Até você configurar o Access e os segredos (abaixo), a API responde `500 Access não configurado`. Ela falha fechada.
 
 ## Configurar o Cloudflare Access
 
-No painel da Cloudflare, em **Zero Trust** (os nomes de menu às vezes mudam um pouco):
-
-1. **Settings → Team name and domain**: anote o team domain, algo como `https://minha-equipe.cloudflareaccess.com`.
-2. **Access controls → Applications → Create new application → Self-hosted and private**:
-   - Nome: `Estante de Leitura`.
-   - Public hostname: o mesmo domínio do passo de deploy (por exemplo `estante.seudominio.com`), **sem caminho**, para proteger o site inteiro.
-   - Session duration: a que preferir (ex.: 1 mês, para não pedir login toda hora no celular).
-   - Login method: *One-time PIN* (código por e-mail) já basta.
-3. **Policy:** crie uma política com Action **Allow** e regra **Include → Emails → o seu e-mail**. Nenhuma outra regra.
-4. Salve e abra a aplicação: copie o **Application Audience (AUD) Tag** (fica em *Overview / Basic information*).
-5. Configure os segredos no Worker:
+1. No painel: **Workers & Pages → my-library → Settings → Domains & Routes**. Na linha do `workers.dev`, clique em **Enable Cloudflare Access**. Se for o primeiro uso do Zero Trust, o painel pede para criar um *team name* (plano Free).
+2. A janela que aparece mostra dois valores; anote-os:
+   - o **team domain**, algo como `https://minha-equipe.cloudflareaccess.com`;
+   - o **AUD** (Application Audience Tag), que o painel chama de `POLICY_AUD`.
+3. Restrinja a política ao seu e-mail. Em **Manage Cloudflare Access** (ou em **Zero Trust → Access controls → Applications**, na aplicação criada), deixe uma única política: Action **Allow**, regra **Include → Emails → o seu e-mail**. Login por *One-time PIN* (código por e-mail) já basta; ajuste a *session duration* se quiser (ex.: 1 mês).
+4. Configure os segredos do Worker:
 
    ```sh
    npx wrangler secret put ACCESS_TEAM_DOMAIN   # https://minha-equipe.cloudflareaccess.com
-   npx wrangler secret put ACCESS_AUD           # o AUD Tag do passo 4
+   npx wrangler secret put ACCESS_AUD           # o AUD do passo 2
    npx wrangler secret put ALLOWED_EMAIL        # seu e-mail (aceita vários, separados por vírgula)
    ```
 
-Pronto: abra o domínio, entre com o código enviado ao seu e-mail e instale o app. No Chrome/Edge do computador use o ícone de instalar na barra de endereço; no Android, "Adicionar à tela inicial"; no iPhone, Safari → Compartilhar → "Adicionar à Tela de Início".
+Pronto: abra `https://my-library.eliasvictor2452.workers.dev`, entre com o código enviado ao seu e-mail e instale o app. No Chrome/Edge do computador, use o ícone de instalar na barra de endereço; no Android, "Adicionar à tela inicial"; no iPhone, Safari → Compartilhar → "Adicionar à Tela de Início".
 
 **Sessão expirada:** quando a sessão do Access vence, o app continua funcionando offline e mostra "Entrar de novo". O botão leva a `/api/login`, que o service worker não intercepta, então passa pelo login do Access e volta para o app. As alterações feitas nesse meio-tempo sobem logo depois.
+
+**Com domínio próprio no futuro:** adicione `"routes": [{ "pattern": "estante.seudominio.com", "custom_domain": true }]` ao `wrangler.jsonc`, troque `workers_dev` para `false`, crie no Zero Trust uma aplicação *Self-hosted* para esse hostname (mesma política) e atualize `ACCESS_AUD`.
 
 ## Backup
 

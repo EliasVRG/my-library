@@ -1,14 +1,15 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "estante",
+  "name": "my-library",
   "main": "worker/index.ts",
   "compatibility_date": "2026-10-01",
-  // O Access protege o seu domínio, não as URLs *.workers.dev nem as de preview: desligue-as.
-  // (A API recusaria mesmo sem o JWT do Access, mas assim nem o app aparece fora do domínio.)
-  "workers_dev": false,
+  // Publicado em https://my-library.eliasvictor2452.workers.dev, protegido pelo Access
+  // (Worker → Settings → Domains & Routes → workers.dev → Enable Cloudflare Access).
+  // As URLs de preview ficam desligadas: seriam mais um endereço a proteger.
+  "workers_dev": true,
   "preview_urls": false,
-  // Troque pelo seu (sub)domínio, que precisa ser uma zona ativa na sua conta Cloudflare.
-  "routes": [{ "pattern": "estante.example.com", "custom_domain": true }],
+  // Com domínio próprio no futuro: "routes": [{ "pattern": "estante.seudominio.com", "custom_domain": true }]
+  // e "workers_dev": false.
   "assets": {
     // SPA: rotas desconhecidas devolvem index.html; só /api/* passa pelo Worker.
     "not_found_handling": "single-page-application",
@@ -18,7 +19,7 @@
     {
       "binding": "DB",
       "database_name": "estante",
-      // Depois de `npx wrangler d1 create estante`, cole aqui o database_id (veja o README).
+      "database_id": "0f0848a2-1371-4d66-ace5-621bf3c0416c",
       "migrations_dir": "migrations"
     }
   ],
@@ -29,7 +30,7 @@
     }
   ],
   "observability": { "enabled": true },
-  // Em `wrangler dev`, mantém o host como localhost (senão ele usa o da route acima, e o
+  // Em `wrangler dev`, mantém o host como localhost mesmo se houver uma route (senão o
   // DEV_SKIP_ACCESS, que só vale em localhost, deixa de funcionar).
   "dev": { "host": "localhost" }
   // ACCESS_TEAM_DOMAIN, ACCESS_AUD e ALLOWED_EMAIL ficam em `wrangler secret put`, nunca aqui.
