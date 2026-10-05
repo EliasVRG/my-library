@@ -25,7 +25,10 @@
 </script>
 
 <div class="demobar" role="note">
-  <span class="dtext">Demonstração: seus dados ficam só neste navegador.</span>
+  <span class="dtext">
+    <span class="long">Demonstração: seus dados ficam só neste navegador.</span>
+    <span class="short" aria-hidden="true">Demo: dados só neste navegador.</span>
+  </span>
   <span class="dacts">
     <a class="dlink" href="/demo/sync">Ver a sincronização</a>
     <button class="dbtn" type="button" onclick={restore} disabled={busy || !app.ready}>
@@ -47,8 +50,11 @@
   .dbtn:hover { border-color: var(--bg); }
   .dbtn:disabled { opacity: 0.6; }
   .dbtn:focus-visible, .dlink:focus-visible { outline-color: var(--bg); }
+  .short { display: none; }
   @media (max-width: 560px) {
     .dlink { display: none; }
+    .long { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+    .short { display: inline; }
   }
   :global(:root.is-demo) { --demo-h: 34px; }
   :global(.is-demo body) { padding-top: var(--demo-h); }

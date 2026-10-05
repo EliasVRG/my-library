@@ -17,7 +17,8 @@
     "build:demo": "vite build --mode demo && node scripts/check-demo-bundle.mjs",
     "deploy:demo": "npm run build:demo && wrangler deploy --config wrangler.demo.jsonc",
     "preview:demo": "vite preview --mode demo",
-    "demo:pdfs": "node scripts/demo-pdfs.mjs"
+    "demo:pdfs": "node scripts/demo-pdfs.mjs",
+    "screenshots": "node scripts/screenshots.mjs"
   },
   "dependencies": {
     "@fontsource-variable/geist": "5.3.0",
@@ -38,6 +39,8 @@
     "@vitest/runner": "4.1.11",
     "@vitest/snapshot": "4.1.11",
     "fake-indexeddb": "6.2.5",
+    "playwright": "1.63.0",
+    "sharp": "0.35.5",
     "svelte": "5.57.1",
     "svelte-check": "4.7.6",
     "typescript": "6.0.3",
