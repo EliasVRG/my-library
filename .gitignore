@@ -1,0 +1,19 @@
+node_modules/
+dist/
+dev-dist/
+.wrangler/
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+.env
+.env.*
+*.log
+.DS_Store
+coverage/
+
+# Nunca versionar livros nem dados reais
+*.pdf
+*.zip
+estante.json
+estante-*.json
+backups/

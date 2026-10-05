@@ -1,0 +1,36 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "estante",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-10-01",
+  // O Access protege o seu domínio, não as URLs *.workers.dev nem as de preview: desligue-as.
+  // (A API recusaria mesmo sem o JWT do Access, mas assim nem o app aparece fora do domínio.)
+  "workers_dev": false,
+  "preview_urls": false,
+  // Troque pelo seu (sub)domínio, que precisa ser uma zona ativa na sua conta Cloudflare.
+  "routes": [{ "pattern": "estante.example.com", "custom_domain": true }],
+  "assets": {
+    // SPA: rotas desconhecidas devolvem index.html; só /api/* passa pelo Worker.
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "estante",
+      // Depois de `npx wrangler d1 create estante`, cole aqui o database_id (veja o README).
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "BUCKET",
+      "bucket_name": "estante-pdfs"
+    }
+  ],
+  "observability": { "enabled": true },
+  // Em `wrangler dev`, mantém o host como localhost (senão ele usa o da route acima, e o
+  // DEV_SKIP_ACCESS, que só vale em localhost, deixa de funcionar).
+  "dev": { "host": "localhost" }
+  // ACCESS_TEAM_DOMAIN, ACCESS_AUD e ALLOWED_EMAIL ficam em `wrangler secret put`, nunca aqui.
+}
