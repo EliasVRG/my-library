@@ -1,0 +1,28 @@
+/* Diálogos (adicionar livro, dados e backup): <dialog> nativo, Esc fecha. */
+
+dialog.sheet { border: 0; padding: 0; background: transparent; width: min(460px, calc(100% - 32px)); max-height: calc(100dvh - 32px); margin: max(56px, env(safe-area-inset-top, 0px)) auto auto; color: var(--ink); overflow: visible; }
+dialog.sheet.wide { width: min(600px, calc(100% - 32px)); }
+dialog.sheet::backdrop { background: var(--scrim); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
+dialog.sheet[open] { animation: rise 0.18s ease-out; }
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } }
+
+.panel { background: var(--surface); border-radius: 20px; width: 100%; max-height: calc(100dvh - 88px); overflow: auto; padding: 28px; display: flex; flex-direction: column; gap: 18px; box-shadow: var(--shadow-panel); }
+.panel h2 { font-family: var(--serif); font-weight: 400; font-size: 30px; margin: 0; line-height: 1; }
+.panel h3 { font-family: var(--serif); font-weight: 400; font-size: 22px; margin: 0; line-height: 1.1; }
+.panel section { display: flex; flex-direction: column; gap: 10px; }
+.panel hr { border: 0; border-top: 1px solid var(--line); margin: 0; width: 100%; }
+
+.drop { border: 1px dashed var(--faint); border-radius: 14px; padding: 22px; text-align: center; color: var(--muted); font-size: 14px; display: flex; flex-direction: column; gap: 8px; align-items: center; transition: border-color 0.15s, background 0.15s; }
+.drop.over { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.drop strong { color: var(--ink); overflow-wrap: anywhere; font-weight: 500; }
+
+.filelist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; max-height: 240px; overflow: auto; border-top: 1px solid var(--line); }
+.filelist li { display: flex; justify-content: space-between; gap: 10px; align-items: center; font-size: 13px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.filelist .name { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.meter { height: 3px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.meter i { display: block; height: 100%; background: var(--ink); }
+
+@media (max-width: 560px) {
+  dialog.sheet { margin-top: max(24px, env(safe-area-inset-top, 0px)); }
+  .panel { padding: 22px 18px; border-radius: 18px; }
+}

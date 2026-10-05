@@ -83,7 +83,13 @@
   }
 </script>
 
-<dialog class="sheet" bind:this={dialog} onclose={() => (request = null)} aria-labelledby="sheet-title">
+<dialog
+  class="sheet"
+  bind:this={dialog}
+  onclose={() => (request = null)}
+  onclick={(e) => e.target === dialog && (request = null)}
+  aria-labelledby="sheet-title"
+>
   <form class="panel" onsubmit={submit} novalidate>
     <h2 id="sheet-title">{attach ? "Anexar PDF" : "Novo livro"}</h2>
     {#if attach}<p class="sub">{attach.title}</p>{/if}
@@ -105,14 +111,14 @@
     >
       <input bind:this={fileInput} type="file" accept="application/pdf,.pdf" hidden onchange={() => void take(fileInput.files?.[0])} />
       {#if file}
-        <strong>{file.name}</strong><br />
-        <span class="hint mono">{formatBytes(file.size)}</span> ·
-        <button type="button" class="btn small" bind:this={pickButton} onclick={() => fileInput.click()}>trocar</button>
+        <strong>{file.name}</strong>
+        <span class="hint mono">{formatBytes(file.size)}</span>
+        <button type="button" class="btn small" bind:this={pickButton} onclick={() => fileInput.click()}>Trocar arquivo</button>
       {:else}
-        Arraste o PDF aqui ou
-        <button type="button" class="btn small" bind:this={pickButton} onclick={() => fileInput.click()}>escolher arquivo</button><br />
+        <span>Arraste o PDF aqui</span>
+        <button type="button" class="btn small" bind:this={pickButton} onclick={() => fileInput.click()}>Escolher arquivo</button>
         <span class="hint">
-          Fica guardado neste aparelho e sobe para a nuvem quando houver conexão.{attach ? "" : " Pode adicionar o PDF depois."}
+          Fica neste aparelho e sobe para a nuvem quando houver conexão.{attach ? "" : " O PDF pode ser adicionado depois."}
         </span>
       {/if}
     </div>
@@ -136,7 +142,7 @@
     <div class="acts-end">
       <button type="button" class="btn ghost" onclick={() => (request = null)}>Cancelar</button>
       <button type="submit" class="btn primary" disabled={busy}>
-        {busy ? "Salvando…" : attach ? "Anexar" : "Salvar na estante"}
+        {busy ? "Salvando…" : attach ? "Anexar" : "Salvar"}
       </button>
     </div>
   </form>

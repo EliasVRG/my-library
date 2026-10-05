@@ -103,7 +103,13 @@
   }
 </script>
 
-<dialog class="sheet wide" bind:this={dialog} onclose={() => (open = false)} aria-labelledby="data-title">
+<dialog
+  class="sheet wide"
+  bind:this={dialog}
+  onclose={() => (open = false)}
+  onclick={(e) => e.target === dialog && (open = false)}
+  aria-labelledby="data-title"
+>
   <div class="panel">
     <h2 id="data-title">Dados e backup</h2>
 
