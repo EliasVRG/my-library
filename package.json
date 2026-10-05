@@ -59,5 +59,6 @@
   "engines": {
     "node": ">=22.13.0",
     "npm": ">=11"
-  }
+  },
+  "license": "MIT"
 }
