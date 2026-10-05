@@ -1,68 +1,94 @@
-/* Paleta, fontes e temas do protótipo. Tema escuro segue o sistema, a menos que data-theme force. */
+/* Tokens do protótipo (estante.html). Valores claros em :root; escuros seguem o sistema,
+   a menos que data-theme force. Toda cor usada no app vem daqui.
+   Ajuste de acessibilidade: --muted claro #76766F → #70706A (4,7:1 sobre --bg). */
 :root {
-  --bg: #eef0ec;
-  --surface: #fbfcfa;
-  --ink: #1b2420;
-  --muted: #5e6b64;
-  --line: #d3d9d3;
-  --accent: #2f5d4e;
+  --bg: #f8f8f6;
+  --surface: #ffffff;
+  --ink: #151515;
+  --muted: #70706a;
+  --faint: #a9a9a2; /* só decoração: bordas, pontos, placeholders */
+  --line: #e7e7e2;
+  --accent: #2c47c9;
   --accent-ink: #ffffff;
-  --accent-soft: #dce8e1;
-  --danger: #a3392e;
-  --warn: #8a5a12;
-  --c1: #2f5d4e;
-  --c2: #7a4e2d;
-  --c3: #3d4f7c;
-  --c4: #7c3d5c;
-  --c5: #5f6b2a;
-  --c6: #2e6a78;
-  --stage: #dce0db;
-  --display: "Newsreader", Georgia, "Times New Roman", serif;
-  --body: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+  --danger: #b23a30;
+  --warn: #9a6236;
+  --stage: #efefeb;
+  --page: #ffffff; /* papel do PDF */
+  --c1: #3e6b5a;
+  --c2: #9a6236;
+  --c3: #4a5e9e;
+  --c4: #94506f;
+  --c5: #6e7a32;
+  --c6: #2f7686;
+  --tint: 16%;
+
+  --scrim: rgb(0 0 0 / 0.35);
+  --shadow-cover: 0 1px 2px rgb(0 0 0 / 0.06), 0 8px 20px -12px rgb(0 0 0 / 0.25);
+  --shadow-cover-hover: 0 2px 4px rgb(0 0 0 / 0.06), 0 16px 28px -14px rgb(0 0 0 / 0.35);
+  --shadow-page: 0 1px 2px rgb(0 0 0 / 0.08), 0 12px 32px -16px rgb(0 0 0 / 0.3);
+  --shadow-float: 0 10px 30px -12px rgb(0 0 0 / 0.35);
+  --shadow-panel: 0 30px 60px -20px rgb(0 0 0 / 0.35);
+
+  --serif: "Instrument Serif", Georgia, "Times New Roman", serif;
+  --sans: "Geist Variable", "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "Geist Mono Variable", "Geist Mono", ui-monospace, Menlo, Consolas, monospace;
   color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #121815;
-    --surface: #1a221e;
-    --ink: #e4eae5;
-    --muted: #9aa79f;
-    --line: #2e3933;
-    --accent: #8fc3ad;
-    --accent-ink: #0f1814;
-    --accent-soft: #24362e;
-    --danger: #e48a7e;
-    --warn: #e0b46a;
-    --c1: #4e8a74;
-    --c2: #a8774f;
-    --c3: #6a7fb3;
-    --c4: #ad6a8c;
-    --c5: #8e9b4c;
-    --c6: #4c98a8;
-    --stage: #0c110f;
+    --bg: #111111;
+    --surface: #1a1a19;
+    --ink: #ededea;
+    --muted: #9a9a93;
+    --faint: #66665f;
+    --line: #2a2a28;
+    --accent: #8ea2ff;
+    --accent-ink: #0e1330;
+    --danger: #f08a80;
+    --warn: #d79a6b;
+    --stage: #0b0b0b;
+    --c1: #7fb5a0;
+    --c2: #d79a6b;
+    --c3: #97a9e6;
+    --c4: #d691b1;
+    --c5: #b3c06f;
+    --c6: #73bfd0;
+    --tint: 14%;
+    --scrim: rgb(0 0 0 / 0.55);
+    --shadow-cover: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 20px -12px rgb(0 0 0 / 0.7);
+    --shadow-cover-hover: 0 2px 4px rgb(0 0 0 / 0.4), 0 16px 28px -14px rgb(0 0 0 / 0.8);
+    --shadow-page: 0 1px 2px rgb(0 0 0 / 0.4), 0 12px 32px -16px rgb(0 0 0 / 0.8);
+    --shadow-float: 0 10px 30px -12px rgb(0 0 0 / 0.8);
+    --shadow-panel: 0 30px 60px -20px rgb(0 0 0 / 0.8);
     color-scheme: dark;
   }
 }
 
 :root[data-theme="dark"] {
-  --bg: #121815;
-  --surface: #1a221e;
-  --ink: #e4eae5;
-  --muted: #9aa79f;
-  --line: #2e3933;
-  --accent: #8fc3ad;
-  --accent-ink: #0f1814;
-  --accent-soft: #24362e;
-  --danger: #e48a7e;
-  --warn: #e0b46a;
-  --c1: #4e8a74;
-  --c2: #a8774f;
-  --c3: #6a7fb3;
-  --c4: #ad6a8c;
-  --c5: #8e9b4c;
-  --c6: #4c98a8;
-  --stage: #0c110f;
+  --bg: #111111;
+  --surface: #1a1a19;
+  --ink: #ededea;
+  --muted: #9a9a93;
+  --faint: #66665f;
+  --line: #2a2a28;
+  --accent: #8ea2ff;
+  --accent-ink: #0e1330;
+  --danger: #f08a80;
+  --warn: #d79a6b;
+  --stage: #0b0b0b;
+  --c1: #7fb5a0;
+  --c2: #d79a6b;
+  --c3: #97a9e6;
+  --c4: #d691b1;
+  --c5: #b3c06f;
+  --c6: #73bfd0;
+  --tint: 14%;
+  --scrim: rgb(0 0 0 / 0.55);
+  --shadow-cover: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 20px -12px rgb(0 0 0 / 0.7);
+  --shadow-cover-hover: 0 2px 4px rgb(0 0 0 / 0.4), 0 16px 28px -14px rgb(0 0 0 / 0.8);
+  --shadow-page: 0 1px 2px rgb(0 0 0 / 0.4), 0 12px 32px -16px rgb(0 0 0 / 0.8);
+  --shadow-float: 0 10px 30px -12px rgb(0 0 0 / 0.8);
+  --shadow-panel: 0 30px 60px -20px rgb(0 0 0 / 0.8);
   color-scheme: dark;
 }

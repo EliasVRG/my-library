@@ -58,8 +58,8 @@ export default defineConfig({
         start_url: "/",
         scope: "/",
         display: "standalone",
-        background_color: "#EEF0EC",
-        theme_color: "#2F5D4E",
+        background_color: "#F8F8F6",
+        theme_color: "#151515",
         icons: [
           { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
           { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
@@ -67,7 +67,13 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ["**/*.{js,mjs,css,html,svg,png,webmanifest}", "pdfjs/{wasm,standard_fonts,iccs}/*"],
+        globPatterns: [
+          "**/*.{js,mjs,css,html,svg,png,webmanifest}",
+          "pdfjs/{wasm,standard_fonts,iccs}/*",
+          // Fontes: só latin e latin-ext; os outros alfabetos vêm sob demanda (unicode-range).
+          "assets/*-latin-*.woff2",
+          "assets/*-latin-ext-*.woff2",
+        ],
         // cmaps vêm sob demanda (runtime cache); quickjs e os fallbacks sem wasm quase nunca são usados.
         globIgnores: ["pdfjs/cmaps/**", "pdfjs/wasm/quickjs*", "pdfjs/wasm/*_nowasm_fallback.js"],
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
@@ -80,20 +86,6 @@ export default defineConfig({
             urlPattern: ({ url }) => url.pathname.startsWith("/pdfjs/cmaps/"),
             handler: "CacheFirst",
             options: { cacheName: "pdfjs-cmaps", expiration: { maxEntries: 200 } },
-          },
-          {
-            urlPattern: ({ url }) => url.origin === "https://fonts.googleapis.com",
-            handler: "StaleWhileRevalidate",
-            options: { cacheName: "google-fonts-css" },
-          },
-          {
-            urlPattern: ({ url }) => url.origin === "https://fonts.gstatic.com",
-            handler: "CacheFirst",
-            options: {
-              cacheName: "google-fonts",
-              cacheableResponse: { statuses: [0, 200] },
-              expiration: { maxEntries: 30, maxAgeSeconds: 60 * 60 * 24 * 365 },
-            },
           },
         ],
       },
