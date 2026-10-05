@@ -18,7 +18,8 @@
     "deploy:demo": "npm run build:demo && wrangler deploy --config wrangler.demo.jsonc",
     "preview:demo": "vite preview --mode demo",
     "demo:pdfs": "node scripts/demo-pdfs.mjs",
-    "screenshots": "node scripts/screenshots.mjs"
+    "screenshots": "node scripts/screenshots.mjs",
+    "dev:demo": "vite --mode demo"
   },
   "dependencies": {
     "@fontsource-variable/geist": "5.3.0",
