@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { Book } from "../shared/model";
+  import { hasReview, type Book, type Status } from "../shared/model";
   import { app } from "./lib/app.svelte";
   import AddSheet from "./lib/components/AddSheet.svelte";
   import DataPanel from "./lib/components/DataPanel.svelte";
@@ -13,6 +13,9 @@
   const parse = () => /^#\/livro\/([0-9a-f-]{36})$/i.exec(location.hash)?.[1] ?? null;
   let openId = $state<string | null>(parse());
   const openBook = $derived(openId ? (app.books.find((b) => b.id === openId) ?? null) : null);
+
+  const count = (s: Status) => app.books.filter((b) => b.status === s).length;
+  const withReview = $derived(app.books.filter((b) => hasReview(app.reviews.get(b.id))).length);
 
   let sheet = $state<{ mode: "new" } | { mode: "attach"; book: Book } | null>(null);
   let dataOpen = $state(false);
@@ -56,14 +59,22 @@
 
 <div class="wrap" inert={!!openBook}>
   <header class="top">
-    <div>
-      <h1>Estante de Leitura</h1>
-      <p class="sub">Seus PDFs, a página onde você parou e suas resenhas, num lugar só.</p>
+    <div class="brand">
+      <h1>Estante</h1>
+      {#if app.books.length}
+        <p class="total" aria-label="Resumo da estante">
+          <span><b class="mono">{app.books.length}</b> {app.books.length === 1 ? "livro" : "livros"}</span>
+          <span><b class="mono">{count("lendo")}</b> lendo</span>
+          <span><b class="mono">{count("lido")}</b> {count("lido") === 1 ? "lido" : "lidos"}</span>
+          <span><b class="mono">{count("quero")}</b> na fila</span>
+          <span><b class="mono">{withReview}</b> com resenha</span>
+        </p>
+      {/if}
     </div>
     <div class="acts">
       <SyncBadge onclick={() => (dataOpen = true)} />
-      <button class="btn" type="button" onclick={() => (dataOpen = true)}>Dados e backup</button>
-      <button class="btn primary" type="button" onclick={() => (sheet = { mode: "new" })} disabled={!app.ready}>Adicionar livro</button>
+      <button class="btn ghost" type="button" title="Dados e backup" onclick={() => (dataOpen = true)}>Dados</button>
+      <button class="btn primary" type="button" onclick={() => (sheet = { mode: "new" })} disabled={!app.ready}>+ Adicionar</button>
     </div>
   </header>
 
