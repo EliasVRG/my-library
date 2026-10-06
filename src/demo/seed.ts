@@ -29,6 +29,8 @@ interface SeedBook extends Partial<BookData> {
   category: string;
   /** Minutos atrás da última mexida; ordena a faixa "Continuar lendo". */
   ago: number;
+  /** Início e fim da leitura, em minutos atrás (dão os "dias" e a linha do ano no story). */
+  read?: { started: number; finished?: number };
   review?: Partial<ReviewData>;
 }
 
@@ -44,6 +46,7 @@ const BOOKS: SeedBook[] = [
     pages: 99, // edição da Biblioteca Nacional no Domínio Público
     current_page: 38,
     ago: 40,
+    read: { started: 12 * DAY },
     review: {
       resumo:
         "Brás Cubas, já morto, escreve as próprias memórias. Conta uma vida de privilégios e projetos abandonados: a paixão por Marcela, o caso com Virgília, a carreira política sem brilho e a ideia fixa de um emplasto contra a melancolia.",
@@ -62,6 +65,7 @@ const BOOKS: SeedBook[] = [
     pages: 96,
     current_page: 41,
     ago: 3 * 60,
+    read: { started: 5 * DAY },
   },
   {
     id: "d0e5a000-0000-4000-8000-000000000004",
@@ -72,6 +76,7 @@ const BOOKS: SeedBook[] = [
     pages: 232,
     current_page: 87,
     ago: 9 * DAY,
+    read: { started: 25 * DAY },
   },
   {
     id: "d0e5a000-0000-4000-8000-000000000001",
@@ -83,6 +88,7 @@ const BOOKS: SeedBook[] = [
     pages: 105,
     current_page: 105,
     ago: 20 * DAY,
+    read: { started: 31 * DAY, finished: 20 * DAY },
     review: {
       resumo:
         "Bento Santiago, velho e recluso, decide contar a própria vida: a infância em Mata-cavalos, o amor por Capitu, o seminário imposto por uma promessa da mãe e o casamento. O ciúme cresce até a certeza, nunca provada, de que Capitu o traiu com Escobar, seu melhor amigo, e de que Ezequiel não é seu filho.",
@@ -108,6 +114,7 @@ const BOOKS: SeedBook[] = [
     pages: 26,
     current_page: 26,
     ago: 34 * DAY,
+    read: { started: 36 * DAY, finished: 34 * DAY },
     review: {
       resumo:
         "O médico Simão Bacamarte funda em Itaguaí a Casa Verde para estudar a loucura. Com critérios cada vez mais amplos, interna boa parte da vila, enfrenta uma revolta e, por fim, inverte a própria teoria: se quase todos são desequilibrados, anormal é o equilíbrio perfeito. Conclui que só ele o tem e se interna sozinho.",
@@ -129,6 +136,7 @@ const BOOKS: SeedBook[] = [
     status: "lido",
     rating: 4,
     ago: 60 * DAY,
+    read: { started: 67 * DAY, finished: 60 * DAY },
   },
   {
     id: "d0e5a000-0000-4000-8000-000000000006",
@@ -169,7 +177,7 @@ export async function seedDemo(store: LocalStore, fetchImpl: typeof fetch = fetc
   for (const s of BOOKS) {
     const ts = now - s.ago * 60_000;
     const clock: Clock = [ts, "demo"];
-    const { id, title, author, category, ago: _ago, review, ...rest } = s;
+    const { id, title, author, category, ago: _ago, read, review, ...rest } = s;
     const book: Book = {
       ...emptyBookData(),
       ...rest,
@@ -177,6 +185,8 @@ export async function seedDemo(store: LocalStore, fetchImpl: typeof fetch = fetc
       title,
       author,
       category,
+      started_at: read ? now - read.started * 60_000 : null,
+      finished_at: read?.finished != null ? now - read.finished * 60_000 : null,
       pdf_ready_key: null,
       created_at: ts - 30 * DAY * 60_000,
       updated_at: ts,

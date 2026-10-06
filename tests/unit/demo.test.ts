@@ -29,6 +29,14 @@ describe("estante de exemplo", () => {
     expect(new Set(books.map((b) => b.category)).size).toBeGreaterThanOrEqual(4);
   });
 
+  it("os lidos têm início e fim de leitura (story mostra dias e a linha do ano)", async () => {
+    const store = await fresh();
+    await seedDemo(store, fakeFetch);
+    const books = await store.listBooks();
+    for (const b of books.filter((x) => x.status === "lido")) expect(b.finished_at! > b.started_at!).toBe(true);
+    for (const b of books.filter((x) => x.status === "quero")) expect([b.started_at, b.finished_at]).toEqual([null, null]);
+  });
+
   it("só dá PDF aos livros cujo arquivo existe de fato (a SPA devolve HTML para o resto)", async () => {
     const store = await fresh();
     await seedDemo(store, fakeFetch);

@@ -3,6 +3,7 @@
   import { ImportError, buildExportData, buildZip, parseImport, type PdfForExport } from "../export/backup";
   import { saveFile } from "../download";
   import { formatBytes } from "../pdf/files";
+  import { setStoryHandle, storyPrefs } from "../story/prefs.svelte";
 
   let { open = $bindable() }: { open: boolean } = $props();
 
@@ -158,6 +159,23 @@
         <div><button class="btn small" type="button" onclick={releaseAll}>Liberar todos os já sincronizados</button></div>
       {/if}
       {#if freeMsg}<p class="ok" role="status">{freeMsg}</p>{/if}
+    </section>
+    <hr />
+
+    <section aria-labelledby="h-story">
+      <h3 id="h-story">Story</h3>
+      <label class="f">
+        Seu @ do Instagram
+        <input
+          value={storyPrefs.handle}
+          oninput={(e) => setStoryHandle(e.currentTarget.value)}
+          placeholder="@seu.usuario"
+          autocomplete="off"
+          autocapitalize="none"
+          spellcheck="false"
+        />
+      </label>
+      <p class="hint">Aparece no canto das imagens de story. Fica só neste aparelho; vazio, não aparece.</p>
     </section>
     <hr />
 

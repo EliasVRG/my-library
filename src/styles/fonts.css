@@ -1,5 +1,8 @@
 /* Fontes empacotadas com o app (funcionam offline). Só os pesos usados. */
 @import "@fontsource/instrument-serif/latin-400.css";
 @import "@fontsource/instrument-serif/latin-ext-400.css";
+/* Itálico: usado nos stories (trecho em destaque, "o outro lado", o ponto de "Terminei."). */
+@import "@fontsource/instrument-serif/latin-400-italic.css";
+@import "@fontsource/instrument-serif/latin-ext-400-italic.css";
 @import "@fontsource-variable/geist/wght.css";
 @import "@fontsource-variable/geist-mono/wght.css";

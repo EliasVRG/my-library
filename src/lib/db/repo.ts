@@ -5,6 +5,7 @@ import {
   emptyBookData,
   emptyReviewData,
   pdfKeyFor,
+  readingDates,
   type Book,
   type BookData,
   type Change,
@@ -108,6 +109,7 @@ export class LocalStore {
       author: (input.author ?? "").trim(),
       category: (input.category ?? "").trim(),
       status: input.status ?? "quero",
+      ...readingDates(null, input.status ?? "quero", now),
     };
     if (input.file) {
       data.pdf_key = pdfKeyFor(id, crypto.randomUUID());
@@ -147,6 +149,7 @@ export class LocalStore {
       await tx.done;
       return undefined;
     }
+    patch = { ...readingDates(book, patch.status, this.now()), ...patch };
     const keys = Object.keys(patch).filter((k) => (book as unknown as Record<string, unknown>)[k] !== (patch as Record<string, unknown>)[k]);
     if (!keys.length) {
       await tx.done;

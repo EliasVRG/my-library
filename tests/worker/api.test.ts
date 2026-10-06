@@ -113,6 +113,17 @@ describe("sincronização", () => {
     expect((await call(`/api/books/${id}/pdf`)).status).toBe(404);
   });
 
+  it("datas de leitura passam pelo merge e voltam no changes", async () => {
+    const id = uuid();
+    await createBook(id);
+    await push([{ table: "books", id, fields: { status: "lendo", started_at: 2000 }, clock: { status: C(2000), started_at: C(2000) } }]);
+    await push([{ table: "books", id, fields: { status: "lido", finished_at: 9000 }, clock: { status: C(9000), finished_at: C(9000) } }]);
+    const b = (await changes()).books.find((x) => x.id === id)!;
+    expect([b.started_at, b.finished_at]).toEqual([2000, 9000]);
+    const bad = await push([{ table: "books", id, fields: { finished_at: "ontem" }, clock: { finished_at: C(9500) } }]);
+    expect(bad.status).toBe(400);
+  });
+
   it("rejeita lotes grandes demais e dados inválidos", async () => {
     const many = Array.from({ length: 21 }, () => ({ table: "books", id: uuid(), fields: {}, clock: {} }));
     expect((await push(many)).status).toBe(400);

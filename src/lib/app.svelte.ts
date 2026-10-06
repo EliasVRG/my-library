@@ -82,12 +82,7 @@ class AppState {
 
 export const app = new AppState();
 
-export function catColor(name: string): string {
-  if (!name) return "var(--faint)";
-  let h = 0;
-  for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-  return `var(--c${(h % 6) + 1})`;
-}
+export { catColor } from "./category";
 
 /** Porcentagem lida (livro marcado como lido conta 100%). */
 export function progress(book: Book): number {

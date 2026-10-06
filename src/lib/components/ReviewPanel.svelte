@@ -34,6 +34,9 @@
   let saving = $state(false);
   let savedCopy = $state(false);
   let removingPdf = $state(false);
+  let storyOpen = $state(false);
+  // O gerador de story (canvas, layout) só é baixado quando o painel abre pela primeira vez.
+  const loadStory = () => import("./StorySheet.svelte");
   let pdfBusy = $state(false);
   const areas: Partial<Record<ReviewField | "category", HTMLElement>> = $state({});
 
@@ -207,6 +210,15 @@
       ></textarea>
     </label>
   {/each}
+
+  <div class="story-cta">
+    <button class="btn" type="button" onclick={() => (storyOpen = true)}>Compartilhar no story</button>
+  </div>
+  {#if storyOpen}
+    {#await loadStory() then { default: StorySheet }}
+      <StorySheet {book} bind:open={storyOpen} />
+    {/await}
+  {/if}
 
   <section class="filebox" aria-labelledby="pdf-h">
     <h4 class="label" id="pdf-h">PDF</h4>

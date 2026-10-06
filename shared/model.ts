@@ -24,6 +24,8 @@ export const BOOK_FIELDS = [
   "pdf_size",
   "pages",
   "current_page",
+  "started_at",
+  "finished_at",
   "deleted_at",
 ] as const;
 export type BookField = (typeof BOOK_FIELDS)[number];
@@ -51,6 +53,10 @@ export interface BookData {
   pdf_size: number;
   pages: number;
   current_page: number;
+  /** Primeira vez que o livro virou "Lendo". */
+  started_at: number | null;
+  /** Última vez que o livro virou "Lido". */
+  finished_at: number | null;
   deleted_at: number | null;
 }
 
@@ -120,6 +126,8 @@ export function emptyBookData(): BookData {
     pdf_size: 0,
     pages: 0,
     current_page: 1,
+    started_at: null,
+    finished_at: null,
     deleted_at: null,
   };
 }
@@ -151,4 +159,19 @@ export function pdfState(b: Pick<Book, "pdf_key" | "pdf_ready_key">): PdfState {
 
 export function hasReview(r: Partial<ReviewData> | undefined | null): boolean {
   return !!r && REVIEW_FIELDS.some((f) => (r[f] ?? "").trim() !== "");
+}
+
+/**
+ * Datas de leitura derivadas de uma troca de situação: `started_at` na primeira vez que o
+ * livro vira "Lendo"; `finished_at` sempre que vira "Lido" (vindo de outra situação).
+ */
+export function readingDates(
+  prev: { status: Status; started_at?: number | null } | null,
+  next: Status | undefined,
+  now: number,
+): Partial<Pick<BookData, "started_at" | "finished_at">> {
+  if (!next || next === prev?.status) return {};
+  if (next === "lendo" && !prev?.started_at) return { started_at: now };
+  if (next === "lido") return { finished_at: now };
+  return {};
 }

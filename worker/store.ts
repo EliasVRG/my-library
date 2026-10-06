@@ -20,6 +20,8 @@ export function rowToBook(r: Row): Book {
     current_page: r.current_page as number,
     created_at: r.created_at as number,
     updated_at: r.updated_at as number,
+    started_at: (r.started_at as number | null) ?? null,
+    finished_at: (r.finished_at as number | null) ?? null,
     deleted_at: (r.deleted_at as number | null) ?? null,
     field_clock: JSON.parse((r.field_clock as string) || "{}"),
     rev: r.rev as number,

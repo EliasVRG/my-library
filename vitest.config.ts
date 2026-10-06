@@ -10,6 +10,8 @@ export default defineConfig({
           environment: "node",
           include: ["tests/unit/**/*.test.ts"],
           setupFiles: ["fake-indexeddb/auto"],
+          // story.test.ts lê os tokens de cor (?raw) para conferir a paleta dos stories.
+          css: { include: [/tokens\.css/] },
         },
       },
       {
