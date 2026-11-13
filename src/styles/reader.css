@@ -108,3 +108,55 @@ body:has(.desk) .toast { bottom: calc(max(20px, env(safe-area-inset-bottom, 0px)
   .desk.no-review .deskbody[data-tab="ler"] .review { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { .rbar { transition: none; } }
+
+/* Camada de texto do pdf.js: invisível sobre o desenho, só para selecionar e marcar a busca.
+   (Regras essenciais de pdfjs-dist/web/pdf_viewer.css.) */
+.pagebox { position: relative; flex: none; --user-unit: 1; --scale-round-x: 1px; --scale-round-y: 1px; }
+.pagebox[hidden] { display: none; }
+.pagebox canvas { display: block; }
+.textLayer {
+  position: absolute; inset: 0; overflow: clip; opacity: 1; line-height: 1; text-align: initial;
+  letter-spacing: normal; word-spacing: normal; text-size-adjust: none; -webkit-text-size-adjust: none;
+  forced-color-adjust: none; transform-origin: 0 0; z-index: 0; color-scheme: only light;
+  --min-font-size: 1;
+  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv: calc(1 / var(--min-font-size));
+}
+.textLayer :is(span, br) {
+  color: transparent; position: absolute; white-space: pre; cursor: text; transform-origin: 0% 0%;
+  -webkit-user-select: text; user-select: text;
+}
+.textLayer > :not(.markedContent), .textLayer .markedContent span:not(.markedContent) {
+  z-index: 1; --font-height: 0; font-size: calc(var(--text-scale-factor) * var(--font-height));
+  --scale-x: 1; --rotate: 0deg; transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+}
+.textLayer .markedContent { display: contents; }
+.textLayer span[role="img"] { user-select: none; cursor: default; }
+.textLayer ::selection { background: color-mix(in srgb, AccentColor, transparent 60%); color: transparent; }
+.textLayer br::selection { background: transparent; }
+.textLayer .endOfContent { display: block; position: absolute; inset: 100% 0 0; z-index: 0; cursor: default; user-select: none; }
+.textLayer mark.hit { position: static; color: transparent; background: rgb(255 196 0 / 0.42); border-radius: 2px; padding: 0; }
+.textLayer mark.hit.now { background: rgb(255 120 0 / 0.55); box-shadow: 0 0 0 2px rgb(255 120 0 / 0.55); }
+
+/* Busca e trecho selecionado: barras flutuantes no topo do leitor */
+.findbar, .selbar {
+  position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 3;
+  display: flex; align-items: center; gap: 4px; padding: 5px; border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  border: 1px solid var(--line); box-shadow: var(--shadow-float); max-width: calc(100% - 24px);
+}
+.findbar input { width: 200px; min-width: 0; flex: 1; border: 0; background: var(--bg); border-radius: 999px; padding: 6px 12px; font-size: 16px; color: var(--ink); }
+.findbar input:focus { outline: none; box-shadow: 0 0 0 1px var(--ink); }
+.findbar input::-webkit-search-cancel-button { display: none; }
+.findbar .btn { border: 0; background: transparent; font-size: 16px; }
+.findbar .btn:hover { background: var(--bg); }
+.findcount { font-size: 12px; color: var(--muted); min-width: 52px; text-align: center; }
+.findbar + .selbar { top: 64px; }
+.readnote {
+  position: absolute; left: 50%; bottom: 80px; transform: translateX(-50%); z-index: 3;
+  background: var(--ink); color: var(--bg); border-radius: 999px; padding: 8px 16px; font-size: 13px; max-width: calc(100% - 24px); text-align: center;
+}
+@media (max-width: 560px) {
+  .findbar input { width: auto; }
+}

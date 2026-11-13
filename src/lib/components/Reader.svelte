@@ -1,10 +1,11 @@
 <script lang="ts">
   import { onDestroy, onMount, untrack } from "svelte";
-  import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
+  import type { PDFDocumentProxy, RenderTask, TextLayer } from "pdfjs-dist";
   import { pdfState, type Book } from "../../../shared/model";
   import { app } from "../app.svelte";
   import { PdfError } from "../pdf/files";
   import { loadPdfjs } from "../pdf/pdfjs";
+  import { appendCitation, citation, cleanQuote, findAll, foldTerm, pageText, type Match } from "../pdf/search";
   import type { Saver } from "../saver.svelte";
 
   let {
@@ -18,6 +19,9 @@
 
   let stage: HTMLDivElement;
   let canvas: HTMLCanvasElement;
+  let pagebox: HTMLDivElement;
+  let textDiv: HTMLDivElement;
+  let textLayer: TextLayer | null = null;
   let doc = $state.raw<PDFDocumentProxy | null>(null);
   let page = $state(1);
   let pageField = $state("1");
@@ -40,6 +44,9 @@
     task?.cancel();
     void doc?.loadingTask.destroy();
     doc = null;
+    texts = [];
+    matches = [];
+    current = -1;
     try {
       if (!book.pdf_key) {
         message = { text: "Este livro ainda não tem PDF. Você já pode escrever a resenha ao lado.", action: "attach", actionLabel: "Anexar PDF" };
@@ -109,8 +116,18 @@
       canvas.style.height = `${Math.floor(vp.height / dpr)}px`;
       task = p.render({ canvas, viewport: vp });
       await task.promise;
+      // Camada de texto invisível por cima do desenho: seleção, cópia e marcação da busca.
+      textLayer?.cancel();
+      textDiv.replaceChildren();
+      pagebox.style.setProperty("--total-scale-factor", String(scale));
+      const pdfjs = await loadPdfjs();
+      const tl = new pdfjs.TextLayer({ textContentSource: p.streamTextContent(), container: textDiv, viewport: p.getViewport({ scale }) });
+      textLayer = tl;
+      await tl.render();
+      if (textLayer === tl) markHits();
     } catch (e) {
-      if ((e as { name?: string })?.name !== "RenderingCancelledException") console.error(e);
+      const name = (e as { name?: string })?.name;
+      if (name !== "RenderingCancelledException" && name !== "AbortException") console.error(e);
     } finally {
       task = null;
       rendering = false;
@@ -142,6 +159,12 @@
 
   function onKey(e: KeyboardEvent) {
     if (!doc || !active) return;
+    // A busca do navegador só veria a página atual; a nossa procura no livro todo.
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f" && !(e.target as HTMLElement).closest("dialog[open]")) {
+      e.preventDefault();
+      openSearch();
+      return;
+    }
     const t = e.target as HTMLElement;
     if (t.closest("input, textarea, select, [contenteditable], dialog[open]")) return;
     if (e.key === "ArrowRight" || e.key === "PageDown") {
@@ -150,6 +173,172 @@
     } else if (e.key === "ArrowLeft" || e.key === "PageUp") {
       goTo(page - 1);
       e.preventDefault();
+    }
+  }
+
+  // ---------- busca no livro ----------
+
+  let searchOpen = $state(false);
+  let query = $state("");
+  let matches = $state.raw<Match[]>([]);
+  let current = $state(-1);
+  let searching = $state(false);
+  let searched = $state(0);
+  let searchInput = $state<HTMLInputElement>();
+  /** Texto de cada página (índice 0 = página 1), extraído na primeira busca e guardado. */
+  let texts: (string | undefined)[] = [];
+  let searchGen = 0;
+
+  function openSearch() {
+    searchOpen = true;
+    showBar();
+    void Promise.resolve().then(() => searchInput?.select());
+  }
+  function closeSearch() {
+    searchOpen = false;
+    query = "";
+  }
+
+  async function runSearch(term: string) {
+    const gen = ++searchGen;
+    const t = foldTerm(term);
+    const d = doc;
+    matches = [];
+    current = -1;
+    markHits();
+    if (!t || !d) {
+      searching = false;
+      return;
+    }
+    searching = true;
+    searched = 0;
+    const found: Match[] = [];
+    const from = page;
+    for (let i = 1; i <= d.numPages; i++) {
+      if (texts[i - 1] === undefined) {
+        const content = await (await d.getPage(i)).getTextContent();
+        texts[i - 1] = pageText(content.items.filter((it) => "str" in it));
+      }
+      if (gen !== searchGen || d !== doc) return;
+      findAll(texts[i - 1]!, t).forEach((_, nth) => found.push({ page: i, nth }));
+      searched = i;
+      // Mostra o primeiro resultado a partir da página atual assim que aparece.
+      if (current < 0) {
+        const k = found.findIndex((m) => m.page >= from);
+        if (k >= 0) {
+          matches = [...found];
+          show(k);
+        }
+      }
+      if (i % 25 === 0) matches = [...found];
+    }
+    matches = found;
+    searching = false;
+    if (current < 0 && found.length) show(0);
+  }
+
+  // Busca enquanto digita, com uma pequena pausa.
+  $effect(() => {
+    const q = query;
+    if (!searchOpen) return untrack(() => void runSearch(""));
+    const t = setTimeout(() => void runSearch(q), 250);
+    return () => clearTimeout(t);
+  });
+
+  function show(i: number) {
+    if (!matches.length) return;
+    current = (i + matches.length) % matches.length;
+    const m = matches[current];
+    if (m.page !== page) goTo(m.page);
+    else markHits();
+  }
+
+  /** Marca as ocorrências na camada de texto da página e rola até a atual. */
+  function markHits() {
+    if (!textDiv) return;
+    for (const m of textDiv.querySelectorAll("mark.hit")) m.replaceWith(...m.childNodes);
+    textDiv.normalize();
+    const t = searchOpen ? foldTerm(query) : "";
+    if (!t) return;
+    const leaves = [...textDiv.querySelectorAll("span")].filter((s) => s.childNodes.length === 1 && s.firstChild?.nodeType === Node.TEXT_NODE);
+    const marks: HTMLElement[] = [];
+    for (const span of leaves) {
+      const text = span.textContent ?? "";
+      const at = findAll(text, t);
+      if (!at.length) continue;
+      const frag = document.createDocumentFragment();
+      let pos = 0;
+      for (const i of at) {
+        frag.append(text.slice(pos, i));
+        const mk = document.createElement("mark");
+        mk.className = "hit";
+        mk.textContent = text.slice(i, i + t.length);
+        frag.append(mk);
+        marks.push(mk);
+        pos = i + t.length;
+      }
+      frag.append(text.slice(pos));
+      span.replaceChildren(frag);
+    }
+    const m = matches[current];
+    if (m && m.page === page && marks.length) {
+      const now = marks[Math.min(m.nth, marks.length - 1)];
+      now.classList.add("now");
+      now.scrollIntoView({ block: "center", inline: "nearest" });
+    }
+  }
+
+  // ---------- seleção: copiar e salvar citação ----------
+
+  let picked = $state<string | null>(null);
+  let pickedTimer: ReturnType<typeof setTimeout>;
+  let note = $state("");
+  let noteTimer: ReturnType<typeof setTimeout>;
+
+  function onSelectionChange() {
+    const s = document.getSelection();
+    const inside = !!s && !s.isCollapsed && !!s.anchorNode && textDiv?.contains(s.anchorNode);
+    clearTimeout(pickedTimer);
+    if (inside) {
+      const text = cleanQuote(s!.toString());
+      picked = text || null;
+    } else if (picked) {
+      // Tocar num botão da barra pode desfazer a seleção antes do clique: espera um pouco.
+      pickedTimer = setTimeout(() => (picked = null), 400);
+    }
+  }
+
+  function flash(text: string) {
+    note = text;
+    clearTimeout(noteTimer);
+    noteTimer = setTimeout(() => (note = ""), 2500);
+  }
+
+  async function copyPicked() {
+    const q = picked;
+    if (!q) return;
+    try {
+      await navigator.clipboard.writeText(q);
+      flash("Trecho copiado.");
+    } catch {
+      flash("Não foi possível copiar. Use o copiar do sistema.");
+    }
+  }
+
+  async function savePicked() {
+    const q = picked;
+    if (!q) return;
+    try {
+      // Edições da resenha ainda na fila entram antes, para a citação não sobrescrever nada.
+      await saver.flush();
+      const notes = (await app.store.getReview(book.id))?.notas ?? "";
+      await app.store.updateReview(book.id, { notas: appendCitation(notes, citation(q, page)) });
+      document.getSelection()?.removeAllRanges();
+      picked = null;
+      flash(`Citação da p. ${page} salva em Notas e citações.`);
+    } catch (e) {
+      console.error(e);
+      flash("Não foi possível salvar a citação. Tente de novo.");
     }
   }
 
@@ -179,6 +368,8 @@
     const d = down;
     down = null;
     if (!d || !focus || !doc || (e.target as HTMLElement).closest("button, input, a")) return;
+    // Arrastar para selecionar texto não é toque nem deslizar.
+    if (!document.getSelection()?.isCollapsed) return;
     const dx = e.clientX - d.x;
     const dy = e.clientY - d.y;
     // Deslizar para o lado vira a página, a menos que a página (com zoom) role na horizontal.
@@ -240,7 +431,9 @@
     stage.addEventListener("pointercancel", cancel);
     const retry = () => message?.action === "retry" && void load();
     window.addEventListener("online", retry);
+    document.addEventListener("selectionchange", onSelectionChange);
     return () => {
+      document.removeEventListener("selectionchange", onSelectionChange);
       window.removeEventListener("online", retry);
       stage.removeEventListener("pointerdown", onPointerDown);
       stage.removeEventListener("pointerup", onPointerUp);
@@ -252,6 +445,10 @@
     observer?.disconnect();
     clearTimeout(resizeTimer);
     clearTimeout(hideTimer);
+    clearTimeout(pickedTimer);
+    clearTimeout(noteTimer);
+    searchGen++;
+    textLayer?.cancel();
     task?.cancel();
     void doc?.loadingTask.destroy();
   });
@@ -261,7 +458,10 @@
 
 <section class="reader" id="painel-ler" aria-label="Leitor de PDF">
   <div class="stage" bind:this={stage}>
-    <canvas bind:this={canvas} hidden={!doc} aria-label={doc ? `Página ${page} de ${total}` : undefined}></canvas>
+    <div class="pagebox" bind:this={pagebox} hidden={!doc}>
+      <canvas bind:this={canvas} aria-hidden="true"></canvas>
+      <div class="textLayer" bind:this={textDiv} role="document" aria-label={doc ? `Texto da página ${page} de ${total}` : undefined}></div>
+    </div>
     {#if message}
       <div class="stagemsg" role="status">
         <p>{message.text}</p>
@@ -273,6 +473,44 @@
       </div>
     {/if}
   </div>
+  {#if doc && searchOpen}
+    <div class="findbar" role="search">
+      <input
+        bind:this={searchInput}
+        bind:value={query}
+        type="search"
+        placeholder="Buscar no livro"
+        aria-label="Buscar no livro"
+        onkeydown={(e) => {
+          if (e.key === "Enter") show(current + (e.shiftKey ? -1 : 1));
+          else if (e.key === "Escape") closeSearch();
+        }}
+      />
+      <span class="mono findcount" aria-live="polite">
+        {#if !foldTerm(query)}
+          &nbsp;
+        {:else if matches.length && current >= 0}
+          {current + 1}/{matches.length}{searching ? "+" : ""}
+        {:else if matches.length}
+          {matches.length}+
+        {:else if searching}
+          {Math.round((100 * searched) / total)}%
+        {:else}
+          0
+        {/if}
+      </span>
+      <button class="btn icon" type="button" aria-label="Resultado anterior" disabled={!matches.length} onclick={() => show(current - 1)}>‹</button>
+      <button class="btn icon" type="button" aria-label="Próximo resultado" disabled={!matches.length} onclick={() => show(current + 1)}>›</button>
+      <button class="btn icon" type="button" aria-label="Fechar busca" onclick={closeSearch}>✕</button>
+    </div>
+  {/if}
+  {#if doc && picked}
+    <div class="selbar" role="toolbar" aria-label="Trecho selecionado">
+      <button class="btn small" type="button" onpointerdown={(e) => e.preventDefault()} onclick={() => void copyPicked()}>Copiar</button>
+      <button class="btn small primary" type="button" onpointerdown={(e) => e.preventDefault()} onclick={() => void savePicked()}>Salvar citação</button>
+    </div>
+  {/if}
+  {#if note}<div class="readnote" role="status">{note}</div>{/if}
   {#if doc}
     {#if focus && barHidden}
       <div class="pagepill mono" aria-hidden="true">{page}/{total}</div>
@@ -294,6 +532,11 @@
       <span class="mono zoom zlbl" aria-live="polite">{Math.round(zoom * 100)}%</span>
       <button class="btn icon zoom" type="button" aria-label="Aumentar zoom" onclick={() => setZoom(zoom + 0.2)}>+</button>
       <span class="sep" aria-hidden="true"></span>
+      <button class="btn icon" type="button" aria-label="Buscar no livro" title="Buscar no livro (Ctrl+F)" aria-pressed={searchOpen} onclick={() => (searchOpen ? closeSearch() : openSearch())}>
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" />
+        </svg>
+      </button>
       <button
         class="btn icon"
         type="button"
