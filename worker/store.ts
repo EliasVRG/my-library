@@ -20,6 +20,7 @@ export function rowToBook(r: Row): Book {
     pdf_ready_key: (r.pdf_ready_key as string | null) ?? null,
     pages: r.pages as number,
     current_page: r.current_page as number,
+    bookmarks: (r.bookmarks as string) ?? "",
     created_at: r.created_at as number,
     updated_at: r.updated_at as number,
     started_at: (r.started_at as number | null) ?? null,

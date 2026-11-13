@@ -40,7 +40,7 @@ export interface StoreOptions {
 }
 
 /** Livros gravados antes de um campo novo existir (ex.: coleção) ganham o valor padrão ao serem lidos. */
-const withDefaults = (b: Book): Book => ({ ...emptyBookData(), ...b, series: b.series ?? "", series_index: b.series_index ?? null });
+const withDefaults = (b: Book): Book => ({ ...emptyBookData(), ...b, series: b.series ?? "", series_index: b.series_index ?? null, bookmarks: b.bookmarks ?? "" });
 
 export class LocalStore {
   private lastTs = 0;

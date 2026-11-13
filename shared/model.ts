@@ -26,6 +26,7 @@ export const BOOK_FIELDS = [
   "pdf_size",
   "pages",
   "current_page",
+  "bookmarks",
   "started_at",
   "finished_at",
   "deleted_at",
@@ -59,6 +60,8 @@ export interface BookData {
   pdf_size: number;
   pages: number;
   current_page: number;
+  /** Páginas marcadas, em ordem e sem repetir: "12,45,80" (vazio = nenhuma). */
+  bookmarks: string;
   /** Primeira vez que o livro virou "Lendo". */
   started_at: number | null;
   /** Última vez que o livro virou "Lido". */
@@ -134,6 +137,7 @@ export function emptyBookData(): BookData {
     pdf_size: 0,
     pages: 0,
     current_page: 1,
+    bookmarks: "",
     started_at: null,
     finished_at: null,
     deleted_at: null,

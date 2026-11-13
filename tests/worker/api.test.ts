@@ -134,6 +134,15 @@ describe("sincronização", () => {
     expect(bad.status).toBe(400);
   });
 
+  it("marcadores passam pelo merge e só aceitam a forma \"12,45\"", async () => {
+    const id = uuid();
+    await createBook(id);
+    await push([{ table: "books", id, fields: { bookmarks: "12,45" }, clock: { bookmarks: C(5000) } }]);
+    expect((await changes()).books.find((x) => x.id === id)?.bookmarks).toBe("12,45");
+    const bad = await push([{ table: "books", id, fields: { bookmarks: "12;drop" }, clock: { bookmarks: C(5500) } }]);
+    expect(bad.status).toBe(400);
+  });
+
   it("rejeita lotes grandes demais e dados inválidos", async () => {
     const many = Array.from({ length: 21 }, () => ({ table: "books", id: uuid(), fields: {}, clock: {} }));
     expect((await push(many)).status).toBe(400);

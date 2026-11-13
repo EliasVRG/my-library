@@ -5,6 +5,7 @@
   import { app } from "../app.svelte";
   import { PdfError } from "../pdf/files";
   import { loadPdfjs } from "../pdf/pdfjs";
+  import { parseBookmarks, toggleBookmark } from "../pdf/bookmarks";
   import { appendCitation, citation, cleanQuote, findAll, foldTerm, pageText, type Match } from "../pdf/search";
   import type { Saver } from "../saver.svelte";
 
@@ -167,12 +168,73 @@
     }
     const t = e.target as HTMLElement;
     if (t.closest("input, textarea, select, [contenteditable], dialog[open]")) return;
+    if (!e.ctrlKey && !e.metaKey && !e.altKey && (e.key === "b" || e.key === "B")) {
+      toggleMark();
+      e.preventDefault();
+      return;
+    }
     if (e.key === "ArrowRight" || e.key === "PageDown") {
       goTo(page + 1);
       e.preventDefault();
     } else if (e.key === "ArrowLeft" || e.key === "PageUp") {
       goTo(page - 1);
       e.preventDefault();
+    }
+  }
+
+  // ---------- marcadores ----------
+
+  // Espelho local para a marca aparecer na hora; o livro gravado manda quando muda (outro aparelho).
+  let marks = $state(untrack(() => book.bookmarks ?? ""));
+  const remoteMarks = $derived(book.bookmarks ?? "");
+  $effect(() => {
+    marks = remoteMarks;
+  });
+  /** Só as páginas que existem neste PDF (um PDF trocado pode ser menor). */
+  const marked = $derived(parseBookmarks(marks).filter((p) => !total || p <= total));
+  const isMarked = $derived(marked.includes(page));
+  let marksOpen = $state(false);
+  let marksBox = $state<HTMLDivElement>();
+
+  function toggleMark(p = page) {
+    const next = toggleBookmark(marks, p);
+    marks = next;
+    const id = book.id;
+    void saver.now(() => app.store.updateBook(id, { bookmarks: next }));
+    flash(next.split(",").includes(String(p)) ? `Página ${p} marcada.` : `Marcador da página ${p} removido.`);
+  }
+
+  $effect(() => {
+    if (!marksOpen) return;
+    const outside = (e: PointerEvent) => !marksBox?.contains(e.target as Node) && (marksOpen = false);
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && (marksOpen = false);
+    document.addEventListener("pointerdown", outside);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("pointerdown", outside);
+      document.removeEventListener("keydown", esc);
+    };
+  });
+
+  // ---------- modo noturno (só neste aparelho) ----------
+
+  const NIGHT_KEY = "estante:reader-night";
+  function initialNight(): boolean {
+    try {
+      const v = localStorage.getItem(NIGHT_KEY);
+      if (v) return v === "1";
+    } catch {
+      // segue o tema do sistema
+    }
+    return matchMedia("(prefers-color-scheme: dark)").matches;
+  }
+  let night = $state(initialNight());
+  function toggleNight() {
+    night = !night;
+    try {
+      localStorage.setItem(NIGHT_KEY, night ? "1" : "0");
+    } catch {
+      // vale só nesta sessão
     }
   }
 
@@ -456,9 +518,9 @@
 
 <svelte:window onkeydown={onKey} />
 
-<section class="reader" id="painel-ler" aria-label="Leitor de PDF">
+<section class="reader" class:night id="painel-ler" aria-label="Leitor de PDF">
   <div class="stage" bind:this={stage}>
-    <div class="pagebox" bind:this={pagebox} hidden={!doc}>
+    <div class="pagebox" class:marked={isMarked} bind:this={pagebox} hidden={!doc}>
       <canvas bind:this={canvas} aria-hidden="true"></canvas>
       <div class="textLayer" bind:this={textDiv} role="document" aria-label={doc ? `Texto da página ${page} de ${total}` : undefined}></div>
     </div>
@@ -513,7 +575,7 @@
   {#if note}<div class="readnote" role="status">{note}</div>{/if}
   {#if doc}
     {#if focus && barHidden}
-      <div class="pagepill mono" aria-hidden="true">{page}/{total}</div>
+      <div class="pagepill mono" aria-hidden="true">{isMarked ? "▾ " : ""}{page}/{total}</div>
     {/if}
     <div class="rbar" class:hidden={barHidden} role="toolbar" aria-label="Controles de leitura" use:keepsBar>
       <button class="btn icon" type="button" aria-label="Página anterior" disabled={page <= 1} onclick={() => goTo(page - 1)}>‹</button>
@@ -532,6 +594,46 @@
       <span class="mono zoom zlbl" aria-live="polite">{Math.round(zoom * 100)}%</span>
       <button class="btn icon zoom" type="button" aria-label="Aumentar zoom" onclick={() => setZoom(zoom + 0.2)}>+</button>
       <span class="sep" aria-hidden="true"></span>
+      <div class="bmwrap" bind:this={marksBox}>
+        <button
+          class="btn icon"
+          class:on={isMarked}
+          type="button"
+          aria-label="Marcadores{marked.length ? ` (${marked.length})` : ''}"
+          title="Marcadores (B marca a página)"
+          aria-expanded={marksOpen}
+          aria-controls="bmlist"
+          onclick={() => (marksOpen = !marksOpen)}
+        >
+          <svg width="17" height="17" viewBox="0 0 24 24" fill={isMarked ? "currentColor" : "none"} stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true">
+            <path d="M6 3h12v18l-6-4.5L6 21z" />
+          </svg>
+        </button>
+        {#if marksOpen}
+          <div class="bmlist" id="bmlist">
+            <button class="btn small" class:primary={!isMarked} type="button" onclick={() => toggleMark()}>
+              {isMarked ? `Desmarcar página ${page}` : `Marcar página ${page}`}
+            </button>
+            {#if marked.length}
+              <ul aria-label="Páginas marcadas">
+                {#each marked as p (p)}
+                  <li class:here={p === page}>
+                    <button class="go" type="button" onclick={() => (goTo(p), (marksOpen = false))}>Página <span class="mono">{p}</span></button>
+                    <button class="btn icon small-x" type="button" aria-label="Remover marcador da página {p}" onclick={() => toggleMark(p)}>✕</button>
+                  </li>
+                {/each}
+              </ul>
+            {:else}
+              <p class="hint">Nenhuma página marcada ainda. Marque para voltar depois.</p>
+            {/if}
+          </div>
+        {/if}
+      </div>
+      <button class="btn icon" type="button" aria-label="Modo noturno" title="Modo noturno" aria-pressed={night} onclick={toggleNight}>
+        <svg width="17" height="17" viewBox="0 0 24 24" fill={night ? "currentColor" : "none"} stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true">
+          <path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z" />
+        </svg>
+      </button>
       <button class="btn icon" type="button" aria-label="Buscar no livro" title="Buscar no livro (Ctrl+F)" aria-pressed={searchOpen} onclick={() => (searchOpen ? closeSearch() : openSearch())}>
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
           <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" />

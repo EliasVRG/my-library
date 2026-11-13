@@ -58,6 +58,7 @@ export function bookToMarkdown(book: Book, review?: Review): string {
     `nota: ${book.rating || "null"}`,
     `paginas: ${book.pages || "null"}`,
     `pagina_atual: ${book.current_page}`,
+    ...(book.bookmarks ? [`marcadores: [${book.bookmarks.split(",").join(", ")}]`] : []),
     `criado_em: ${isoDate(book.created_at)}`,
     `atualizado_em: ${isoDate(Math.max(book.updated_at, review?.updated_at ?? 0))}`,
     ...(book.file_name ? [`arquivo_pdf: ${yaml(book.file_name)}`] : []),

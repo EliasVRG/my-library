@@ -5,7 +5,7 @@ O que falta na Estante, em fases. Cada fase é entregue sozinha, testada, e fica
 | Fase | O quê | Situação |
 | --- | --- | --- |
 | 1 | Texto no PDF: buscar, selecionar, copiar e salvar citação | feita |
-| 2 | Marcadores e modo noturno no leitor | a fazer |
+| 2 | Marcadores e modo noturno no leitor | feita |
 | 3 | Capas a partir da primeira página do PDF | a fazer |
 | 4 | Estatísticas de leitura e meta do ano | a fazer |
 | 5 | Testes de navegador (Playwright) no CI | a fazer |
