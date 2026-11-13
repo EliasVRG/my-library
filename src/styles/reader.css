@@ -111,9 +111,16 @@ body:has(.desk) .toast { bottom: calc(max(20px, env(safe-area-inset-bottom, 0px)
 
 /* Camada de texto do pdf.js: invisível sobre o desenho, só para selecionar e marcar a busca.
    (Regras essenciais de pdfjs-dist/web/pdf_viewer.css.) */
-.pagebox { position: relative; flex: none; --user-unit: 1; --scale-round-x: 1px; --scale-round-y: 1px; }
+.pagebox {
+  position: relative; flex: none; overflow: hidden; background: var(--page); border-radius: 2px; box-shadow: var(--shadow-page);
+  --user-unit: 1; --scale-round-x: 1px; --scale-round-y: 1px;
+}
 .pagebox[hidden] { display: none; }
-.pagebox canvas { display: block; }
+/* A página inteira, deslocada para a janela mostrar só a área com conteúdo (margens cortadas). */
+.pageinner { position: absolute; left: 0; top: 0; }
+.pagebox canvas { display: block; box-shadow: none; border-radius: 0; }
+/* Em tela cheia, a página fica no meio quando sobra altura. */
+.desk.focus .pagebox { margin-block: auto; }
 .textLayer {
   position: absolute; inset: 0; overflow: clip; opacity: 1; line-height: 1; text-align: initial;
   letter-spacing: normal; word-spacing: normal; text-size-adjust: none; -webkit-text-size-adjust: none;
@@ -188,10 +195,15 @@ body:has(.desk) .toast { bottom: calc(max(20px, env(safe-area-inset-bottom, 0px)
 
 /* Modo noturno: só a página do PDF (cores invertidas, fotos mantêm o tom aproximado) */
 .reader.night .stage { background: #0d0d0c; }
-.reader.night .pagebox canvas { filter: invert(0.9) hue-rotate(180deg); box-shadow: none; }
+.reader.night .pagebox canvas { filter: invert(0.9) hue-rotate(180deg); }
+.reader.night .pagebox { box-shadow: none; }
 .reader.night .textLayer ::selection { background: rgb(120 150 255 / 0.4); }
 .reader.night .textLayer mark.hit { background: rgb(255 196 0 / 0.3); }
 @media (max-width: 560px) {
   .rbar .of { padding-right: 2px; }
 }
 .coverpick { margin-top: 8px; }
+/* Deslizar para o lado vira a página: o navegador não pode usar o mesmo gesto para "voltar" (fecharia o livro). */
+.desk, .desk .stage { overscroll-behavior: none; }
+body:has(.desk) { overscroll-behavior-x: none; }
+html:has(.desk) { overscroll-behavior-x: none; }

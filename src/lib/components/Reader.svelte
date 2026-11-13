@@ -1,11 +1,12 @@
 <script lang="ts">
   import { onDestroy, onMount, untrack } from "svelte";
-  import type { PDFDocumentProxy, RenderTask, TextLayer } from "pdfjs-dist";
+  import type { PDFDocumentProxy, PDFPageProxy, RenderTask, TextLayer } from "pdfjs-dist";
   import { pdfState, type Book } from "../../../shared/model";
   import { app } from "../app.svelte";
   import { PdfError } from "../pdf/files";
   import { loadPdfjs, openPdf } from "../pdf/pdfjs";
   import { parseBookmarks, toggleBookmark } from "../pdf/bookmarks";
+  import { findContentBox, type ContentBox } from "../pdf/crop";
   import { appendCitation, citation, cleanQuote, findAll, foldTerm, pageText, type Match } from "../pdf/search";
   import type { Saver } from "../saver.svelte";
 
@@ -21,6 +22,9 @@
   let stage: HTMLDivElement;
   let canvas: HTMLCanvasElement;
   let pagebox: HTMLDivElement;
+  let pageinner: HTMLDivElement;
+  /** Área com conteúdo de cada página (null = não cortar), calculada uma vez por página. */
+  let boxes = new Map<number, ContentBox | null>();
   let textDiv: HTMLDivElement;
   let textLayer: TextLayer | null = null;
   let doc = $state.raw<PDFDocumentProxy | null>(null);
@@ -46,6 +50,7 @@
     void doc?.loadingTask.destroy();
     doc = null;
     texts = [];
+    boxes = new Map();
     matches = [];
     current = -1;
     try {
@@ -99,16 +104,29 @@
     rendering = true;
     try {
       const p = await doc.getPage(page);
+      const n = page;
+      // Telas estreitas (celular, tablet em pé): corta as margens em branco para o texto ocupar a largura.
+      const crop = stage.clientWidth < 800 ? await contentBox(p, n) : null;
+      const c = crop ?? { x0: 0, y0: 0, x1: 1, y1: 1 };
       // No modo foco a página ocupa a largura toda (tablet); fora dele, com margem e um teto de tamanho.
       const avail = Math.max(200, stage.clientWidth - (focus ? 16 : 40));
       const base = p.getViewport({ scale: 1 });
-      const scale = Math.min(avail / base.width, focus ? 3 : 1.5) * zoom;
+      const fit = avail / (base.width * (c.x1 - c.x0));
+      const scale = Math.min(fit, (focus ? 3 : 1.5) / (c.x1 - c.x0)) * zoom;
       const dpr = window.devicePixelRatio || 1;
       const vp = p.getViewport({ scale: scale * dpr });
+      const cssW = Math.floor(vp.width / dpr);
+      const cssH = Math.floor(vp.height / dpr);
       canvas.width = Math.floor(vp.width);
       canvas.height = Math.floor(vp.height);
-      canvas.style.width = `${Math.floor(vp.width / dpr)}px`;
-      canvas.style.height = `${Math.floor(vp.height / dpr)}px`;
+      canvas.style.width = `${cssW}px`;
+      canvas.style.height = `${cssH}px`;
+      // A página inteira fica dentro de uma janela do tamanho da área com conteúdo.
+      pagebox.style.width = `${Math.floor(cssW * (c.x1 - c.x0))}px`;
+      pagebox.style.height = `${Math.floor(cssH * (c.y1 - c.y0))}px`;
+      pageinner.style.width = `${cssW}px`;
+      pageinner.style.height = `${cssH}px`;
+      pageinner.style.transform = `translate(${-Math.round(cssW * c.x0)}px, ${-Math.round(cssH * c.y0)}px)`;
       task = p.render({ canvas, viewport: vp });
       await task.promise;
       // Camada de texto invisível por cima do desenho: seleção, cópia e marcação da busca.
@@ -131,6 +149,27 @@
       again = false;
       void render();
     }
+  }
+
+  /** Desenha a página pequena (160 px) uma vez e procura onde está o conteúdo. */
+  async function contentBox(p: PDFPageProxy, n: number): Promise<ContentBox | null> {
+    if (boxes.has(n)) return boxes.get(n)!;
+    let box: ContentBox | null = null;
+    try {
+      const vp = p.getViewport({ scale: 160 / p.getViewport({ scale: 1 }).width });
+      const c = document.createElement("canvas");
+      c.width = Math.ceil(vp.width);
+      c.height = Math.ceil(vp.height);
+      const ctx = c.getContext("2d", { willReadFrequently: true })!;
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, c.width, c.height);
+      await p.render({ canvas: c, viewport: vp }).promise;
+      box = findContentBox(ctx.getImageData(0, 0, c.width, c.height).data, c.width, c.height);
+    } catch {
+      // sem corte nesta página
+    }
+    boxes.set(n, box);
+    return box;
   }
 
   function goTo(n: number) {
@@ -416,6 +455,40 @@
     untrack(() => void render());
   });
 
+  // Deslizar para o lado vira a página (com ou sem tela cheia). Usa eventos de toque: os de ponteiro
+  // são cancelados pelo navegador assim que ele decide que o dedo está rolando a página.
+  let touch: { x: number; y: number; t: number } | null = null;
+  function onTouchStart(e: TouchEvent) {
+    touch = e.touches.length === 1 ? { x: e.touches[0].clientX, y: e.touches[0].clientY, t: e.timeStamp } : null;
+  }
+  const isZoomed = () => (window.visualViewport?.scale ?? 1) > 1.01 || stage.scrollWidth > stage.clientWidth + 1;
+  /** Arrasto claramente horizontal é do leitor: o navegador não o usa para "voltar" (fecharia o livro). */
+  function onTouchMove(e: TouchEvent) {
+    const t = touch;
+    if (!t || e.touches.length !== 1 || isZoomed() || document.getSelection()?.isCollapsed === false) return;
+    const dx = e.touches[0].clientX - t.x;
+    const dy = e.touches[0].clientY - t.y;
+    if (Math.abs(dx) > 10 && Math.abs(dx) > 1.5 * Math.abs(dy) && e.cancelable) e.preventDefault();
+  }
+  function onTouchEnd(e: TouchEvent) {
+    const t = touch;
+    touch = null;
+    if (!t || !doc || e.touches.length) return;
+    const c = e.changedTouches[0];
+    const dx = c.clientX - t.x;
+    const dy = c.clientY - t.y;
+    const zoomed = isZoomed();
+    if (
+      Math.abs(dx) > 50 &&
+      Math.abs(dx) > 1.5 * Math.abs(dy) &&
+      e.timeStamp - t.t < 800 &&
+      !zoomed &&
+      document.getSelection()?.isCollapsed !== false
+    ) {
+      goTo(dx < 0 ? page + 1 : page - 1);
+    }
+  }
+
   let down: { x: number; y: number; t: number } | null = null;
   function onPointerDown(e: PointerEvent) {
     down = e.isPrimary ? { x: e.clientX, y: e.clientY, t: e.timeStamp } : null;
@@ -428,8 +501,8 @@
     if (!document.getSelection()?.isCollapsed) return;
     const dx = e.clientX - d.x;
     const dy = e.clientY - d.y;
-    // Deslizar para o lado vira a página, a menos que a página (com zoom) role na horizontal.
-    if (Math.abs(dx) > 60 && Math.abs(dx) > 2 * Math.abs(dy) && stage.scrollWidth <= stage.clientWidth + 1) {
+    // Com mouse, arrastar para o lado também vira (no toque, quem cuida é onTouchEnd).
+    if (e.pointerType !== "touch" && Math.abs(dx) > 60 && Math.abs(dx) > 2 * Math.abs(dy) && stage.scrollWidth <= stage.clientWidth + 1) {
       goTo(dx < 0 ? page + 1 : page - 1);
       return;
     }
@@ -485,6 +558,9 @@
     stage.addEventListener("pointerdown", onPointerDown);
     stage.addEventListener("pointerup", onPointerUp);
     stage.addEventListener("pointercancel", cancel);
+    stage.addEventListener("touchstart", onTouchStart, { passive: true });
+    stage.addEventListener("touchmove", onTouchMove, { passive: false });
+    stage.addEventListener("touchend", onTouchEnd, { passive: true });
     const retry = () => message?.action === "retry" && void load();
     window.addEventListener("online", retry);
     document.addEventListener("selectionchange", onSelectionChange);
@@ -494,6 +570,9 @@
       stage.removeEventListener("pointerdown", onPointerDown);
       stage.removeEventListener("pointerup", onPointerUp);
       stage.removeEventListener("pointercancel", cancel);
+      stage.removeEventListener("touchstart", onTouchStart);
+      stage.removeEventListener("touchmove", onTouchMove);
+      stage.removeEventListener("touchend", onTouchEnd);
     };
   });
   onDestroy(() => {
@@ -515,8 +594,10 @@
 <section class="reader" class:night id="painel-ler" aria-label="Leitor de PDF">
   <div class="stage" bind:this={stage}>
     <div class="pagebox" class:marked={isMarked} bind:this={pagebox} hidden={!doc}>
-      <canvas bind:this={canvas} aria-hidden="true"></canvas>
-      <div class="textLayer" bind:this={textDiv} role="document" aria-label={doc ? `Texto da página ${page} de ${total}` : undefined}></div>
+      <div class="pageinner" bind:this={pageinner}>
+        <canvas bind:this={canvas} aria-hidden="true"></canvas>
+        <div class="textLayer" bind:this={textDiv} role="document" aria-label={doc ? `Texto da página ${page} de ${total}` : undefined}></div>
+      </div>
     </div>
     {#if message}
       <div class="stagemsg" role="status">

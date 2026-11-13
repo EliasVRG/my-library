@@ -98,8 +98,8 @@ Other known limitations:
 ## Testing
 
 ```sh
-npm test           # Vitest: 141 tests
-npm run test:e2e   # Playwright: 14 browser tests against the demo build
+npm test           # Vitest: 144 tests
+npm run test:e2e   # Playwright: 16 browser tests against the demo build
 npm run check      # svelte-check + tsc for the Worker and the browser tests
 ```
 
@@ -110,7 +110,7 @@ npm run check      # svelte-check + tsc for the Worker and the browser tests
   - resumable multipart upload.
 - **`tests/unit/demo.test.ts` (8 tests):** the sample data, "Restore sample" and the serverless mode.
 - **`tests/unit/story.test.ts` (47 tests):** story text wrapping and fitting, data selection and the safe area of the three layouts.
-- **Reader, shelf and stats (34 tests):** PDF search and citations, bookmarks, generated covers, collections and categories, reading dates, yearly stats and goal pace.
+- **Reader, shelf and stats (37 tests):** PDF search and citations, margin cropping, bookmarks, generated covers, collections and categories, reading dates, yearly stats and goal pace.
 - **`tests/worker/api.test.ts` (18 tests):** Worker routes running in workerd with local D1 and R2. They cover push/changes, CAS, deletes removing the PDF from R2, multipart upload with Range reads, and Access JWT validation (with keys generated in the test).
 
 Client tests run in Node with `fake-indexeddb` and the same in-memory server used by the `/demo/sync` page. CI runs `check`, `test` and both builds. The demo build fails if any emitted file contains `/api/` (`scripts/check-demo-bundle.mjs`).

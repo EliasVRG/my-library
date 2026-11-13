@@ -98,8 +98,8 @@ Outras limitações conhecidas:
 ## Testes
 
 ```sh
-npm test           # Vitest: 141 testes
-npm run test:e2e   # Playwright: 14 testes de navegador contra o build demo
+npm test           # Vitest: 144 testes
+npm run test:e2e   # Playwright: 16 testes de navegador contra o build demo
 npm run check      # svelte-check + tsc do Worker e dos testes de navegador
 ```
 
@@ -110,7 +110,7 @@ npm run check      # svelte-check + tsc do Worker e dos testes de navegador
   - upload em partes com retomada.
 - **`tests/unit/demo.test.ts` (8 testes):** dados de exemplo, "Restaurar exemplo" e o modo sem servidor.
 - **`tests/unit/story.test.ts` (47 testes):** quebra e ajuste do texto do story, seleção dos dados e a área segura dos três modelos.
-- **Leitor, estante e estatísticas (34 testes):** busca e citações no PDF, marcadores, capas geradas, coleções e categorias, datas de leitura, estatísticas do ano e ritmo da meta.
+- **Leitor, estante e estatísticas (37 testes):** busca e citações no PDF, corte de margens, marcadores, capas geradas, coleções e categorias, datas de leitura, estatísticas do ano e ritmo da meta.
 - **`tests/worker/api.test.ts` (18 testes):** rotas do Worker rodando no workerd com D1 e R2 locais. Cobrem push/changes, CAS, exclusão apagando o PDF do R2, upload multipart com leitura por Range e validação do JWT do Access (com chaves geradas no teste).
 
 Os testes de cliente rodam em Node com `fake-indexeddb` e o mesmo servidor em memória da página `/demo/sync`. O CI roda `check`, `test` e os dois builds. O build da demo falha se algum arquivo gerado contiver `/api/` (`scripts/check-demo-bundle.mjs`).
