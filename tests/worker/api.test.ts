@@ -124,6 +124,16 @@ describe("sincronização", () => {
     expect(bad.status).toBe(400);
   });
 
+  it("coleção e volume passam pelo merge e voltam no changes", async () => {
+    const id = uuid();
+    await createBook(id);
+    expect((await changes()).books.find((x) => x.id === id)).toMatchObject({ series: "", series_index: null });
+    await push([{ table: "books", id, fields: { series: "Harry Potter", series_index: 2.5 }, clock: { series: C(4000), series_index: C(4000) } }]);
+    expect((await changes()).books.find((x) => x.id === id)).toMatchObject({ series: "Harry Potter", series_index: 2.5 });
+    const bad = await push([{ table: "books", id, fields: { series_index: -3 }, clock: { series_index: C(4500) } }]);
+    expect(bad.status).toBe(400);
+  });
+
   it("rejeita lotes grandes demais e dados inválidos", async () => {
     const many = Array.from({ length: 21 }, () => ({ table: "books", id: uuid(), fields: {}, clock: {} }));
     expect((await push(many)).status).toBe(400);

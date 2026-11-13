@@ -4,6 +4,8 @@
   import { saveFile } from "../download";
   import { formatBytes } from "../pdf/files";
   import { setStoryHandle, storyPrefs } from "../story/prefs.svelte";
+  import { categoryCounts, makeSeries, NO_CATEGORY, seriesKey } from "../shelf";
+  import RenameList from "./RenameList.svelte";
 
   let { open = $bindable() }: { open: boolean } = $props();
 
@@ -39,6 +41,28 @@
     if (s.state === "syncing") return "Sincronizando agora…";
     return s.lastSync ? `Última sincronização às ${new Date(s.lastSync).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}.` : "Ainda não sincronizou nesta sessão.";
   });
+
+  const catItems = $derived(categoryCounts(app.books).filter(([c]) => c !== NO_CATEGORY));
+  const seriesItems = $derived.by((): [string, number][] => {
+    const groups = new Map<string, typeof app.books>();
+    for (const b of app.books) {
+      const k = seriesKey(b.series);
+      if (k) groups.set(k, [...(groups.get(k) ?? []), b]);
+    }
+    return [...groups].map(([k, g]): [string, number] => [makeSeries(k, g).name, g.length]).sort((a, b) => a[0].localeCompare(b[0], "pt"));
+  });
+
+  async function renameCategory(from: string, to: string): Promise<number> {
+    const targets = app.books.filter((b) => b.category.trim() === from);
+    for (const b of targets) await app.store.updateBook(b.id, { category: to });
+    return targets.length;
+  }
+  async function renameSeries(from: string, to: string): Promise<number> {
+    const k = seriesKey(from);
+    const targets = app.books.filter((b) => seriesKey(b.series) === k);
+    for (const b of targets) await app.store.updateBook(b.id, { series: to });
+    return targets.length;
+  }
 
   async function release(id: string) {
     freeMsg = (await app.files.release(id)) ? "" : "Esse PDF ainda não foi enviado; não dá para liberar agora.";
@@ -159,6 +183,16 @@
         <div><button class="btn small" type="button" onclick={releaseAll}>Liberar todos os já sincronizados</button></div>
       {/if}
       {#if freeMsg}<p class="ok" role="status">{freeMsg}</p>{/if}
+    </section>
+    <hr />
+
+    <section aria-labelledby="h-org">
+      <h3 id="h-org">Categorias e coleções</h3>
+      <p class="sub">Renomear para um nome que já existe junta os dois. A mudança vale para todos os livros e sincroniza.</p>
+      <h4 class="label">Categorias</h4>
+      <RenameList items={catItems} noun="categoria" onrename={renameCategory} />
+      <h4 class="label">Coleções</h4>
+      <RenameList items={seriesItems} noun="coleção" onrename={renameSeries} />
     </section>
     <hr />
 

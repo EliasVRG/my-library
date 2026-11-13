@@ -1,38 +1,81 @@
 <script lang="ts">
   import { PLAN, type Status } from "../../../shared/model";
   import { app } from "../app.svelte";
+  import { categoryCounts, makeSeries, NO_CATEGORY, seriesKey, shelfEntries, volumeLabel } from "../shelf";
   import BookCard from "./BookCard.svelte";
   import ContinueReading from "./ContinueReading.svelte";
+  import SeriesCard from "./SeriesCard.svelte";
 
   let { onopen, onadd }: { onopen: (id: string) => void; onadd: () => void } = $props();
 
-  const NONE = "Sem categoria";
-  const ORDER: Record<Status, number> = { lendo: 0, pausado: 1, quero: 2, lido: 3 };
+  /** Quantas categorias aparecem como abas; as outras ficam em "Mais". */
+  const TOP = 5;
 
   let q = $state("");
   let status = $state<"todos" | Status>("todos");
   let cat = $state("Todas");
   let addingPlan = $state(false);
   let planError = $state("");
+  let moreOpen = $state(false);
+  let moreQ = $state("");
+  let moreBox = $state<HTMLDivElement>();
+  let moreSearch = $state<HTMLInputElement>();
+  /** Coleção aberta (chave), ou null para a estante inteira. */
+  let openSeries = $state<string | null>(null);
 
   const books = $derived(app.books);
-  const cats = $derived.by(() => {
-    const m = new Map<string, number>();
-    for (const b of books) m.set(b.category || NONE, (m.get(b.category || NONE) ?? 0) + 1);
-    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0], "pt"));
-  });
+  const cats = $derived(categoryCounts(books));
   const activeCat = $derived(cat === "Todas" || cats.some(([c]) => c === cat) ? cat : "Todas");
+  const topCats = $derived(cats.slice(0, TOP));
+  const restCats = $derived(cats.slice(TOP));
+  // Categoria escolhida em "Mais" ganha uma aba enquanto estiver ativa.
+  const extraCat = $derived(restCats.find(([c]) => c === activeCat));
+  const restShown = $derived.by(() => {
+    const t = moreQ.trim().toLocaleLowerCase("pt");
+    return t ? restCats.filter(([c]) => c.toLocaleLowerCase("pt").includes(t)) : restCats;
+  });
 
-  const shown = $derived.by(() => {
-    const term = q.trim().toLocaleLowerCase("pt");
-    return books
-      .filter(
-        (b) =>
-          (activeCat === "Todas" || (b.category || NONE) === activeCat) &&
-          (status === "todos" || b.status === status) &&
-          (!term || b.title.toLocaleLowerCase("pt").includes(term) || b.author.toLocaleLowerCase("pt").includes(term)),
-      )
-      .sort((a, b) => (ORDER[a.status] ?? 9) - (ORDER[b.status] ?? 9) || b.updated_at - a.updated_at);
+  const term = $derived(q.trim().toLocaleLowerCase("pt"));
+  const filtered = $derived(
+    books.filter(
+      (b) =>
+        (activeCat === "Todas" || (b.category.trim() || NO_CATEGORY) === activeCat) &&
+        (status === "todos" || b.status === status) &&
+        (!term ||
+          b.title.toLocaleLowerCase("pt").includes(term) ||
+          b.author.toLocaleLowerCase("pt").includes(term) ||
+          (b.series ?? "").toLocaleLowerCase("pt").includes(term)),
+    ),
+  );
+  // Buscando, cada livro aparece sozinho (a busca acha volumes dentro das coleções).
+  const entries = $derived(term ? filtered.map((book) => ({ kind: "book" as const, book })) : shelfEntries(filtered));
+  const series = $derived.by(() => {
+    if (!openSeries) return null;
+    const group = books.filter((b) => seriesKey(b.series) === openSeries);
+    return group.length ? makeSeries(openSeries, group) : null;
+  });
+  // A coleção ficou vazia (volumes excluídos ou renomeados): volta para a estante.
+  $effect(() => {
+    if (openSeries && !series) openSeries = null;
+  });
+
+  function pickCat(c: string) {
+    cat = c;
+    moreOpen = false;
+    moreQ = "";
+  }
+
+  $effect(() => {
+    if (!moreOpen) return;
+    moreSearch?.focus();
+    const outside = (e: PointerEvent) => !moreBox?.contains(e.target as Node) && (moreOpen = false);
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && (moreOpen = false);
+    document.addEventListener("pointerdown", outside);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("pointerdown", outside);
+      document.removeEventListener("keydown", esc);
+    };
   });
 
   async function addPlan() {
@@ -49,20 +92,71 @@
   }
 </script>
 
-{#if books.length}
+{#if books.length && series}
+  <section class="series-view" aria-labelledby="series-h">
+    <div class="series-head">
+      <button class="btn icon" type="button" aria-label="Voltar para a estante" onclick={() => (openSeries = null)}>←</button>
+      <div>
+        <h2 id="series-h">{series.name}</h2>
+        <p class="sub">
+          {series.author ? `${series.author} · ` : ""}{series.books.length} volumes · <span class="mono">{series.read}</span> lidos
+        </p>
+      </div>
+    </div>
+    <div class="grid">
+      {#each series.books as book (book.id)}
+        <div class="vol">
+          {#if book.series_index != null}<span class="vol-n mono">{volumeLabel(book.series_index)}</span>{/if}
+          <BookCard {book} onopen={() => onopen(book.id)} />
+        </div>
+      {/each}
+    </div>
+  </section>
+{:else if books.length}
   <ContinueReading {onopen} />
 
   <section aria-label="Biblioteca">
     <div class="filters">
       <div class="cats" role="group" aria-label="Filtrar por categoria">
-        {#each [["Todas", books.length] as [string, number], ...cats] as [c, n] (c)}
-          <button class="cat-tab" type="button" aria-pressed={c === activeCat} onclick={() => (cat = c)}>
+        {#each [["Todas", books.length] as [string, number], ...topCats, ...(extraCat ? [extraCat] : [])] as [c, n] (c)}
+          <button class="cat-tab" type="button" aria-pressed={c === activeCat} onclick={() => pickCat(c)}>
             {c}<span class="n"><span class="sr-only">: </span>{n}</span>
           </button>
         {/each}
+        {#if restCats.length}
+          <div class="more" bind:this={moreBox}>
+            <button class="cat-tab" type="button" aria-expanded={moreOpen} aria-controls="more-cats" onclick={() => (moreOpen = !moreOpen)}>
+              Mais<span class="n"><span class="sr-only">: </span>{restCats.length}</span> <span aria-hidden="true">▾</span>
+            </button>
+            {#if moreOpen}
+              <div class="more-pop" id="more-cats">
+                <input
+                  class="search"
+                  type="search"
+                  placeholder="Buscar categoria"
+                  aria-label="Buscar categoria"
+                  bind:this={moreSearch}
+                  bind:value={moreQ}
+                  onkeydown={(e) => e.key === "Enter" && restShown[0] && pickCat(restShown[0][0])}
+                />
+                <ul>
+                  {#each restShown as [c, n] (c)}
+                    <li>
+                      <button type="button" aria-pressed={c === activeCat} onclick={() => pickCat(c)}>
+                        <span>{c}</span><span class="n mono">{n}</span>
+                      </button>
+                    </li>
+                  {:else}
+                    <li class="hint">Nenhuma categoria com esse nome.</li>
+                  {/each}
+                </ul>
+              </div>
+            {/if}
+          </div>
+        {/if}
       </div>
       <div class="ftools">
-        <input class="search" type="search" placeholder="Buscar" aria-label="Buscar por título ou autor" bind:value={q} />
+        <input class="search" type="search" placeholder="Buscar" aria-label="Buscar por título, autor ou coleção" bind:value={q} />
         <select class="seg" aria-label="Filtrar por situação" bind:value={status}>
           <option value="todos">Todos</option>
           <option value="lendo">Lendo</option>
@@ -73,10 +167,14 @@
       </div>
     </div>
 
-    {#if shown.length}
+    {#if entries.length}
       <div class="grid">
-        {#each shown as book (book.id)}
-          <BookCard {book} onopen={() => onopen(book.id)} />
+        {#each entries as e (e.kind === "book" ? e.book.id : `s:${e.key}`)}
+          {#if e.kind === "book"}
+            <BookCard book={e.book} onopen={() => onopen(e.book.id)} />
+          {:else}
+            <SeriesCard entry={e} onopen={() => (openSeries = e.key)} />
+          {/if}
         {/each}
       </div>
     {:else}

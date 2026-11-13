@@ -25,6 +25,8 @@ export interface NewBookInput {
   title: string;
   author?: string;
   category?: string;
+  series?: string;
+  series_index?: number | null;
   status?: BookData["status"];
   file?: File | Blob & { name?: string };
 }
@@ -36,6 +38,9 @@ export interface StoreOptions {
    */
   localOnly?: boolean;
 }
+
+/** Livros gravados antes de um campo novo existir (ex.: coleção) ganham o valor padrão ao serem lidos. */
+const withDefaults = (b: Book): Book => ({ ...emptyBookData(), ...b, series: b.series ?? "", series_index: b.series_index ?? null });
 
 export class LocalStore {
   private lastTs = 0;
@@ -83,14 +88,14 @@ export class LocalStore {
   // ---------- leitura ----------
 
   async listBooks(): Promise<Book[]> {
-    return (await this.db.getAll("books")).filter((b) => b.deleted_at == null);
+    return (await this.db.getAll("books")).filter((b) => b.deleted_at == null).map(withDefaults);
   }
   async listReviews(): Promise<Review[]> {
     return this.db.getAll("reviews");
   }
   async getBook(id: string): Promise<Book | undefined> {
     const b = await this.db.get("books", id);
-    return b && b.deleted_at == null ? b : undefined;
+    return b && b.deleted_at == null ? withDefaults(b) : undefined;
   }
   async getReview(id: string): Promise<Review | undefined> {
     return this.db.get("reviews", id);
@@ -108,6 +113,8 @@ export class LocalStore {
       title: input.title.trim(),
       author: (input.author ?? "").trim(),
       category: (input.category ?? "").trim(),
+      series: (input.series ?? "").trim(),
+      series_index: input.series_index ?? null,
       status: input.status ?? "quero",
       ...readingDates(null, input.status ?? "quero", now),
     };

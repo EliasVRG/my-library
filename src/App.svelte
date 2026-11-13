@@ -3,6 +3,7 @@
   import { hasReview, type Book, type Status } from "../shared/model";
   import DemoBanner from "./demo/DemoBanner.svelte";
   import { app, backend } from "./lib/app.svelte";
+  import { dismissAppleHint, install, promptInstall } from "./lib/install.svelte";
   import AddSheet from "./lib/components/AddSheet.svelte";
   import DataPanel from "./lib/components/DataPanel.svelte";
   import Desk from "./lib/components/Desk.svelte";
@@ -76,6 +77,9 @@
     </div>
     <div class="acts">
       {#if backend.mode === "prod"}<SyncBadge onclick={() => (dataOpen = true)} />{/if}
+      {#if install.canPrompt}
+        <button class="btn ghost" type="button" onclick={() => void promptInstall()}>Instalar app</button>
+      {/if}
       <button class="btn ghost" type="button" title="Dados e backup" onclick={() => (dataOpen = true)}>Dados</button>
       <button class="btn primary" type="button" onclick={() => (sheet = { mode: "new" })} disabled={!app.ready}>+ Adicionar</button>
     </div>
@@ -98,6 +102,16 @@
     </div>
   {/if}
 
+  {#if install.appleHint}
+    <div class="notice" role="note">
+      <span>
+        Para usar como app, com ícone na tela inicial e em tela cheia: toque em
+        <b>Compartilhar</b> <span aria-hidden="true">(□↑)</span> e depois em <b>Adicionar à Tela de Início</b>.
+      </span>
+      <button class="btn small" type="button" onclick={dismissAppleHint}>Entendi</button>
+    </div>
+  {/if}
+
   {#if !app.ready && !app.fatal}
     <div class="empty"><p>Abrindo sua estante…</p></div>
   {:else if app.ready}
@@ -113,6 +127,9 @@
 
 <datalist id="catList">
   {#each app.categories as c (c)}<option value={c}></option>{/each}
+</datalist>
+<datalist id="seriesList">
+  {#each app.seriesNames as s (s)}<option value={s}></option>{/each}
 </datalist>
 
 <AddSheet bind:request={sheet} />

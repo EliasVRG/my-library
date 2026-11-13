@@ -3,7 +3,8 @@
   import { app, catColor } from "../app.svelte";
 
   // Capa 2:3 desenhada com a cor da categoria. `small` é a versão da faixa "Continuar lendo".
-  let { book, small = false }: { book: Book; small?: boolean } = $props();
+  // `plain`: capa sem selo de arquivo (a capa de uma coleção, que não é um livro).
+  let { book, small = false, plain = false }: { book: Book; small?: boolean; plain?: boolean } = $props();
 
   const pdf = $derived(pdfState(book));
   const upload = $derived(app.sync.uploads.get(book.id));
@@ -11,7 +12,7 @@
 
   // Selo no canto: situação do arquivo (sem PDF, envio pendente, disponível offline).
   const badge = $derived.by((): { text: string; title: string; quiet?: boolean } | null => {
-    if (small) return null;
+    if (small || plain) return null;
     if (pdf === "none") return { text: "sem PDF", title: "Sem PDF" };
     if (pdf === "uploading" && upload !== undefined) return { text: `${Math.round(upload * 100)}%`, title: "Enviando o PDF", quiet: true };
     if (pdf === "uploading" && local) return { text: "na fila", title: "PDF guardado neste aparelho, aguardando envio", quiet: true };

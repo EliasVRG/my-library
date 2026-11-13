@@ -7,7 +7,14 @@
   import { loadPdfjs } from "../pdf/pdfjs";
   import type { Saver } from "../saver.svelte";
 
-  let { book, saver, active, onattach }: { book: Book; saver: Saver; active: boolean; onattach: () => void } = $props();
+  let {
+    book,
+    saver,
+    active,
+    focus = false,
+    onattach,
+    ontogglefocus,
+  }: { book: Book; saver: Saver; active: boolean; focus?: boolean; onattach: () => void; ontogglefocus: () => void } = $props();
 
   let stage: HTMLDivElement;
   let canvas: HTMLCanvasElement;
@@ -90,9 +97,10 @@
     rendering = true;
     try {
       const p = await doc.getPage(page);
-      const avail = Math.max(200, stage.clientWidth - 40);
+      // No modo foco a página ocupa a largura toda (tablet); fora dele, com margem e um teto de tamanho.
+      const avail = Math.max(200, stage.clientWidth - (focus ? 16 : 40));
       const base = p.getViewport({ scale: 1 });
-      const scale = Math.min(avail / base.width, 1.5) * zoom;
+      const scale = Math.min(avail / base.width, focus ? 3 : 1.5) * zoom;
       const dpr = window.devicePixelRatio || 1;
       const vp = p.getViewport({ scale: scale * dpr });
       canvas.width = Math.floor(vp.width);
@@ -145,6 +153,64 @@
     }
   }
 
+  // ---------- modo foco: barra que some, toques nas bordas e deslizar ----------
+
+  let barHidden = $state(false);
+  let hideTimer: ReturnType<typeof setTimeout>;
+  function showBar() {
+    barHidden = false;
+    clearTimeout(hideTimer);
+    if (focus) hideTimer = setTimeout(() => (barHidden = true), 3000);
+  }
+  $effect(() => {
+    if (focus) untrack(showBar);
+    else {
+      clearTimeout(hideTimer);
+      barHidden = false;
+    }
+    untrack(() => void render());
+  });
+
+  let down: { x: number; y: number; t: number } | null = null;
+  function onPointerDown(e: PointerEvent) {
+    down = e.isPrimary ? { x: e.clientX, y: e.clientY, t: e.timeStamp } : null;
+  }
+  function onPointerUp(e: PointerEvent) {
+    const d = down;
+    down = null;
+    if (!d || !focus || !doc || (e.target as HTMLElement).closest("button, input, a")) return;
+    const dx = e.clientX - d.x;
+    const dy = e.clientY - d.y;
+    // Deslizar para o lado vira a página, a menos que a página (com zoom) role na horizontal.
+    if (Math.abs(dx) > 60 && Math.abs(dx) > 2 * Math.abs(dy) && stage.scrollWidth <= stage.clientWidth + 1) {
+      goTo(dx < 0 ? page + 1 : page - 1);
+      return;
+    }
+    if (Math.abs(dx) > 10 || Math.abs(dy) > 10 || e.timeStamp - d.t > 400) return;
+    // Toque: bordas viram a página, o meio mostra ou esconde a barra.
+    const r = stage.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width;
+    if (x < 0.25) goTo(page - 1);
+    else if (x > 0.75) goTo(page + 1);
+    else if (barHidden) showBar();
+    else {
+      clearTimeout(hideTimer);
+      barHidden = true;
+    }
+  }
+
+  /** Mexer na barra (toque ou teclado) adia o sumiço dela. */
+  function keepsBar(el: HTMLElement) {
+    el.addEventListener("pointerdown", showBar);
+    el.addEventListener("focusin", showBar);
+    return {
+      destroy() {
+        el.removeEventListener("pointerdown", showBar);
+        el.removeEventListener("focusin", showBar);
+      },
+    };
+  }
+
   // Recarrega quando o PDF do livro muda (anexado, trocado).
   $effect(() => {
     void pdfKey;
@@ -167,14 +233,25 @@
       resizeTimer = setTimeout(() => void render(), 150);
     });
     observer.observe(stage);
+    // Gestos do modo foco; os mesmos comandos existem nos botões e nas setas do teclado.
+    const cancel = () => (down = null);
+    stage.addEventListener("pointerdown", onPointerDown);
+    stage.addEventListener("pointerup", onPointerUp);
+    stage.addEventListener("pointercancel", cancel);
     const retry = () => message?.action === "retry" && void load();
     window.addEventListener("online", retry);
-    return () => window.removeEventListener("online", retry);
+    return () => {
+      window.removeEventListener("online", retry);
+      stage.removeEventListener("pointerdown", onPointerDown);
+      stage.removeEventListener("pointerup", onPointerUp);
+      stage.removeEventListener("pointercancel", cancel);
+    };
   });
   onDestroy(() => {
     token++;
     observer?.disconnect();
     clearTimeout(resizeTimer);
+    clearTimeout(hideTimer);
     task?.cancel();
     void doc?.loadingTask.destroy();
   });
@@ -197,7 +274,10 @@
     {/if}
   </div>
   {#if doc}
-    <div class="rbar" role="toolbar" aria-label="Controles de leitura">
+    {#if focus && barHidden}
+      <div class="pagepill mono" aria-hidden="true">{page}/{total}</div>
+    {/if}
+    <div class="rbar" class:hidden={barHidden} role="toolbar" aria-label="Controles de leitura" use:keepsBar>
       <button class="btn icon" type="button" aria-label="Página anterior" disabled={page <= 1} onclick={() => goTo(page - 1)}>‹</button>
       <input
         class="mono"
@@ -213,6 +293,23 @@
       <button class="btn icon zoom" type="button" aria-label="Diminuir zoom" onclick={() => setZoom(zoom - 0.2)}>−</button>
       <span class="mono zoom zlbl" aria-live="polite">{Math.round(zoom * 100)}%</span>
       <button class="btn icon zoom" type="button" aria-label="Aumentar zoom" onclick={() => setZoom(zoom + 0.2)}>+</button>
+      <span class="sep" aria-hidden="true"></span>
+      <button
+        class="btn icon"
+        type="button"
+        aria-label={focus ? "Sair da tela cheia" : "Tela cheia"}
+        title={focus ? "Sair da tela cheia" : "Tela cheia"}
+        aria-pressed={focus}
+        onclick={ontogglefocus}
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          {#if focus}
+            <path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" />
+          {:else}
+            <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+          {/if}
+        </svg>
+      </button>
     </div>
   {/if}
 </section>

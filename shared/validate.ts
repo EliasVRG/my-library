@@ -26,6 +26,8 @@ const BOOK_CHECKS: Record<(typeof BOOK_FIELDS)[number], Check> = {
   title: isText(MAX_TEXT),
   author: isText(MAX_TEXT),
   category: isText(120),
+  series: isText(120),
+  series_index: (v) => v === null || (typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= 10_000),
   status: (v) => typeof v === "string" && (STATUSES as readonly string[]).includes(v),
   rating: isInt(0, 5),
   pdf_key: (v, id) => v === null || isPdfKeyFor(id, v),

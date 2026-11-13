@@ -5,6 +5,7 @@
   import { saveFile } from "../download";
   import { formatBytes } from "../pdf/files";
   import type { Saver } from "../saver.svelte";
+  import { nextVolume, parseVolume } from "../shelf";
 
   let { book, saver, ondeleted, onattach }: { book: Book; saver: Saver; ondeleted: () => void; onattach: () => void } =
     $props();
@@ -25,6 +26,8 @@
   const initial = app.reviews.get(id);
   let draft = $state(Object.fromEntries(REVIEW_FIELDS.map((f) => [f, initial?.[f] ?? ""])) as Record<ReviewField, string>);
   let category = $state(untrack(() => book.category));
+  let series = $state(untrack(() => book.series ?? ""));
+  let volume = $state(untrack(() => (book.series_index == null ? "" : String(book.series_index).replace(".", ","))));
   let confirming = $state(false);
   let deleting = $state(false);
   let deleteError = $state("");
@@ -38,7 +41,7 @@
   // O gerador de story (canvas, layout) só é baixado quando o painel abre pela primeira vez.
   const loadStory = () => import("./StorySheet.svelte");
   let pdfBusy = $state(false);
-  const areas: Partial<Record<ReviewField | "category", HTMLElement>> = $state({});
+  const areas: Partial<Record<ReviewField | "category" | "series" | "volume", HTMLElement>> = $state({});
 
   const pdf = $derived(pdfState(book));
   const offlineSize = $derived(app.offline.get(id));
@@ -56,6 +59,16 @@
   $effect(() => {
     const c = remoteCategory;
     if (!saver.has("category") && document.activeElement !== areas.category) category = c;
+  });
+  const remoteSeries = $derived(book.series ?? "");
+  const remoteVolume = $derived(book.series_index ?? null);
+  $effect(() => {
+    const s = remoteSeries;
+    if (!saver.has("series") && document.activeElement !== areas.series) series = s;
+  });
+  $effect(() => {
+    const v = remoteVolume;
+    if (!saver.has("volume") && document.activeElement !== areas.volume) volume = v == null ? "" : String(v).replace(".", ",");
   });
 
   /** Textarea que cresce com o texto. Navegadores com `field-sizing: content` fazem isso só com CSS. */
@@ -78,6 +91,24 @@
   function editCategory(value: string) {
     category = value;
     saver.queue("category", () => app.store.updateBook(id, { category: value.trim() }));
+  }
+
+  function editSeries(value: string) {
+    series = value;
+    saver.queue("series", () => app.store.updateBook(id, { series: value.trim() }));
+  }
+
+  /** Ao escolher uma coleção sem volume, sugere o próximo número livre dela. */
+  function suggestVolume() {
+    if (volume.trim() || !series.trim()) return;
+    const others = app.books.filter((b) => b.id !== id);
+    const n = nextVolume(others, series);
+    if (n != null) editVolume(String(n));
+  }
+
+  function editVolume(value: string) {
+    volume = value;
+    saver.queue("volume", () => app.store.updateBook(id, { series_index: parseVolume(value) }));
   }
 
   function setStatus(s: Status) {
@@ -177,6 +208,32 @@
         <option value="pausado">Pausado</option>
         <option value="lido">Lido</option>
       </select>
+    </label>
+    <label class="f">
+      Coleção
+      <input
+        list="seriesList"
+        value={series}
+        bind:this={areas.series}
+        placeholder="ex.: Harry Potter"
+        oninput={(e) => editSeries(e.currentTarget.value)}
+        onchange={suggestVolume}
+        onblur={() => void saver.flush()}
+        autocomplete="off"
+      />
+    </label>
+    <label class="f">
+      Volume
+      <input
+        value={volume}
+        bind:this={areas.volume}
+        inputmode="decimal"
+        placeholder="nº"
+        disabled={!series.trim()}
+        oninput={(e) => editVolume(e.currentTarget.value)}
+        onblur={() => void saver.flush()}
+        autocomplete="off"
+      />
     </label>
   </div>
 

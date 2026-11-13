@@ -83,3 +83,28 @@
 
 /* Com a mesa aberta, avisos flutuantes sobem para não cobrir a barra do leitor. */
 body:has(.desk) .toast { bottom: calc(max(20px, env(safe-area-inset-bottom, 0px)) + 72px); }
+
+/* Painel da resenha recolhível nas telas largas (tablet deitado, PC). */
+.reviewtoggle { flex: none; }
+.desk.no-review .deskbody { grid-template-columns: minmax(0, 1fr); }
+.desk.no-review .review { display: none; }
+
+/* Modo foco: só o PDF, em tela cheia quando possível. */
+.desk.focus .deskhead, .desk.focus .tabs { display: none; }
+.desk.focus .deskbody { grid-template-columns: minmax(0, 1fr); }
+.desk.focus .review { display: none; }
+.desk.focus .reader { display: flex; }
+.desk.focus .stage { padding: 8px 8px 24px; touch-action: pan-x pan-y pinch-zoom; user-select: none; -webkit-user-select: none; }
+.desk:fullscreen { padding: 0; }
+.rbar { transition: opacity 0.2s, transform 0.2s; }
+.rbar.hidden { opacity: 0; pointer-events: none; transform: translate(-50%, 12px); }
+.pagepill {
+  position: absolute; right: 12px; bottom: max(10px, env(safe-area-inset-bottom, 0px)); font-size: 11px; color: var(--muted);
+  background: color-mix(in srgb, var(--surface) 80%, transparent); border-radius: 999px; padding: 2px 8px; pointer-events: none;
+}
+@media (max-width: 900px) {
+  .reviewtoggle { display: none; }
+  .desk.no-review .review { display: flex; }
+  .desk.no-review .deskbody[data-tab="ler"] .review { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .rbar { transition: none; } }

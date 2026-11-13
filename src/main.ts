@@ -1,5 +1,7 @@
 import { mount } from "svelte";
 import App from "./App.svelte";
+// Cedo, antes de o navegador disparar o aviso de instalação.
+import "./lib/install.svelte";
 import "./styles/fonts.css";
 import "./styles/tokens.css";
 import "./styles/base.css";

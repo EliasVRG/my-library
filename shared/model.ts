@@ -17,6 +17,8 @@ export const BOOK_FIELDS = [
   "title",
   "author",
   "category",
+  "series",
+  "series_index",
   "status",
   "rating",
   "pdf_key",
@@ -46,6 +48,10 @@ export interface BookData {
   title: string;
   author: string;
   category: string;
+  /** Coleção ou série ("Harry Potter"); vazio = livro avulso. */
+  series: string;
+  /** Posição na coleção (1, 2, 3…; aceita 2.5 para contos entre volumes). */
+  series_index: number | null;
   status: Status;
   rating: number;
   pdf_key: string | null;
@@ -119,6 +125,8 @@ export function emptyBookData(): BookData {
     title: "",
     author: "",
     category: "",
+    series: "",
+    series_index: null,
     status: "quero",
     rating: 0,
     pdf_key: null,

@@ -62,3 +62,11 @@ dialog.sheet.story { width: min(760px, calc(100% - 32px)); }
   .story .panel > .acts-end { position: sticky; bottom: 0; background: var(--surface); padding-top: 10px; }
 }
 @keyframes sheet-up { from { transform: translateY(24px); opacity: 0; } }
+
+/* Renomear categorias e coleções */
+.renames { max-height: 260px; }
+.rename-form { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; width: 100%; }
+.rename-form input { flex: 1; min-width: 140px; border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 6px 10px; font-size: 16px; color: var(--ink); }
+.rename-form input:focus { outline: none; border-color: var(--ink); }
+.rename-form .hint { width: 100%; }
+.panel h4.label { margin: 6px 0 0; }

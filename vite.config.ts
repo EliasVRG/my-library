@@ -82,6 +82,9 @@ export default defineConfig(({ mode }) => {
     VitePWA({
       registerType: "prompt",
       injectRegister: false,
+      // O Cloudflare Access só deixa passar quem manda o cookie da sessão. Sem isto o navegador busca o
+      // manifest sem cookies, recebe a tela de login e não oferece instalar o app.
+      useCredentials: true,
       includeAssets: ["favicon.svg", "icons/apple-touch-icon.png"],
       manifest: {
         name: demo ? "Estante de Leitura (demo)" : "Estante de Leitura",

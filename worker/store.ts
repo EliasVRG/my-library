@@ -10,6 +10,8 @@ export function rowToBook(r: Row): Book {
     title: r.title as string,
     author: r.author as string,
     category: r.category as string,
+    series: (r.series as string) ?? "",
+    series_index: (r.series_index as number | null) ?? null,
     status: r.status as Book["status"],
     rating: r.rating as number,
     pdf_key: (r.pdf_key as string | null) ?? null,

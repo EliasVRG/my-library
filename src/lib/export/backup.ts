@@ -53,6 +53,7 @@ export function bookToMarkdown(book: Book, review?: Review): string {
     `titulo: ${yaml(book.title)}`,
     `autor: ${yaml(book.author)}`,
     `categoria: ${yaml(book.category)}`,
+    ...(book.series ? [`colecao: ${yaml(book.series)}`, `volume: ${book.series_index ?? "null"}`] : []),
     `situacao: ${yaml(STATUS_LABEL[book.status] ?? book.status)}`,
     `nota: ${book.rating || "null"}`,
     `paginas: ${book.pages || "null"}`,

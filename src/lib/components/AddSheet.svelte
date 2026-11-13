@@ -3,6 +3,7 @@
   import type { Book, Status } from "../../../shared/model";
   import { app } from "../app.svelte";
   import { formatBytes } from "../pdf/files";
+  import { nextVolume, parseVolume } from "../shelf";
 
   type Request = { mode: "new" } | { mode: "attach"; book: Book } | null;
   let { request = $bindable() }: { request: Request } = $props();
@@ -16,6 +17,8 @@
   let title = $state("");
   let author = $state("");
   let category = $state("");
+  let series = $state("");
+  let volume = $state("");
   let status = $state<Status>("quero");
   let error = $state("");
   let busy = $state(false);
@@ -26,7 +29,7 @@
   $effect(() => {
     if (request && !dialog.open) {
       file = null;
-      title = author = category = "";
+      title = author = category = series = volume = "";
       status = "quero";
       error = "";
       busy = false;
@@ -68,7 +71,7 @@
     busy = true;
     try {
       if (attach) await app.store.attachPdf(attach.id, file!);
-      else await app.store.createBook({ title, author, category, status, file: file ?? undefined });
+      else await app.store.createBook({ title, author, category, series, series_index: parseVolume(volume), status, file: file ?? undefined });
       if (file) void app.ensurePersisted();
       request = null;
     } catch (err) {
@@ -136,6 +139,19 @@
             <option value="lido">Lido</option>
           </select>
         </label>
+      </div>
+      <div class="two">
+        <label class="f">
+          Coleção <span class="hint">opcional</span>
+          <input
+            bind:value={series}
+            list="seriesList"
+            placeholder="ex.: Harry Potter"
+            autocomplete="off"
+            onchange={() => !volume && series.trim() && (volume = String(nextVolume(app.books, series) ?? ""))}
+          />
+        </label>
+        <label class="f">Volume<input bind:value={volume} inputmode="decimal" placeholder="nº" autocomplete="off" disabled={!series.trim()} /></label>
       </div>
     {/if}
     {#if error}<p class="err" role="alert">{error}</p>{/if}

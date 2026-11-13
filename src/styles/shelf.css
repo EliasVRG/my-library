@@ -79,6 +79,42 @@ header.top .acts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center
 .empty p { max-width: 48ch; margin: 0; }
 .empty .acts { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 6px; }
 
+/* Categorias que não cabem nas abas */
+.more { position: relative; }
+.more-pop {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 5; width: min(280px, 80vw);
+  background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow-panel);
+  padding: 10px; display: flex; flex-direction: column; gap: 8px;
+}
+.more-pop .search { width: 100%; }
+.more-pop ul { list-style: none; margin: 0; padding: 0; max-height: 280px; overflow: auto; }
+.more-pop li button { width: 100%; display: flex; justify-content: space-between; gap: 10px; border: 0; background: transparent; padding: 8px 10px; border-radius: 8px; font-size: 14px; text-align: left; color: var(--ink); }
+.more-pop li button:hover, .more-pop li button[aria-pressed="true"] { background: var(--bg); }
+.more-pop li .n { color: var(--muted); font-size: 11px; }
+.more-pop li.hint { padding: 8px 10px; }
+
+/* Coleção: a capa da coleção com os outros volumes aparecendo atrás */
+.stack-covers { position: relative; display: block; padding: 0 10px 0 0; }
+.stack .cover { position: relative; z-index: 1; }
+.stack-covers::before, .stack-covers::after {
+  content: ""; position: absolute; inset: 0 10px 0 0; border-radius: 4px 8px 8px 4px;
+  background: color-mix(in srgb, var(--faint) 45%, var(--surface)); box-shadow: var(--shadow-cover);
+}
+.stack-covers::before { transform: translate(5px, -5px); }
+.stack-covers::after { transform: translate(10px, -10px); z-index: -1; }
+.stack-covers.one::after { display: none; }
+.stack:hover .stack-covers::before { transform: translate(7px, -7px); }
+.stack:hover .stack-covers::after { transform: translate(13px, -13px); }
+.stack-covers::before, .stack-covers::after { transition: transform 0.2s ease; }
+.stack .stack-now { justify-content: flex-start; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+
+/* Dentro de uma coleção */
+.series-head { display: flex; align-items: center; gap: 14px; margin-bottom: 28px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+.series-head h2 { font-family: var(--serif); font-weight: 400; font-size: 30px; line-height: 1.1; margin: 0; }
+.series-head .sub { margin: 2px 0 0; }
+.vol { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.vol-n { font-size: 11px; color: var(--muted); }
+
 @media (max-width: 560px) {
   header.top { margin-bottom: 32px; }
   .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px 16px; }

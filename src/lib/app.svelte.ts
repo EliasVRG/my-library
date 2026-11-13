@@ -5,6 +5,7 @@ import type { Book, Review } from "../../shared/model";
 import { openEstanteDb } from "./db/idb";
 import { LocalStore } from "./db/repo";
 import { PdfFiles } from "./pdf/files";
+import { seriesNames } from "./shelf";
 import { idleStatus, type SyncController, type SyncStatus } from "./sync/types";
 
 export { backend };
@@ -78,6 +79,8 @@ class AppState {
   }
 
   categories = $derived([...new Set(this.books.map((b) => b.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt")));
+  /** Nomes de coleção já usados, para sugerir ao digitar. */
+  seriesNames = $derived(seriesNames(this.books));
 }
 
 export const app = new AppState();
