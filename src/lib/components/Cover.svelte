@@ -4,7 +4,10 @@
 
   // Capa 2:3 desenhada com a cor da categoria. `small` é a versão da faixa "Continuar lendo".
   // `plain`: capa sem selo de arquivo (a capa de uma coleção, que não é um livro).
-  let { book, small = false, plain = false }: { book: Book; small?: boolean; plain?: boolean } = $props();
+  // `imageOf`: usa a capa gerada de outro livro (a coleção mostra a do primeiro volume).
+  let { book, small = false, plain = false, imageOf }: { book: Book; small?: boolean; plain?: boolean; imageOf?: string } = $props();
+
+  const image = $derived(app.covers.get(imageOf ?? book.id));
 
   const pdf = $derived(pdfState(book));
   const upload = $derived(app.sync.uploads.get(book.id));
@@ -22,7 +25,8 @@
   });
 </script>
 
-<span class="cover" class:small style:--cat={catColor(book.category)} aria-hidden={small ? "true" : undefined}>
+<span class="cover" class:small class:photo={!!image} style:--cat={catColor(book.category)} aria-hidden={small ? "true" : undefined}>
+  {#if image}<img class="cimg" src={image} alt="" loading="lazy" decoding="async" />{/if}
   <span class="chead">
     <span class="ck">{book.category}</span>
     {#if badge}

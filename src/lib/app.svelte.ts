@@ -4,6 +4,8 @@ import { backend } from "$backend";
 import type { Book, Review } from "../../shared/model";
 import { openEstanteDb } from "./db/idb";
 import { LocalStore } from "./db/repo";
+import type { PDFDocumentProxy } from "pdfjs-dist";
+import { Covers } from "./pdf/covers";
 import { PdfFiles } from "./pdf/files";
 import { seriesNames } from "./shelf";
 import { idleStatus, type SyncController, type SyncStatus } from "./sync/types";
@@ -14,6 +16,7 @@ class AppState {
   store!: LocalStore;
   engine!: SyncController;
   files!: PdfFiles;
+  coverMaker!: Covers;
 
   ready = $state(false);
   fatal = $state<string | null>(null);
@@ -21,6 +24,8 @@ class AppState {
   reviews = $state.raw<Map<string, Review>>(new Map());
   /** Livros cujo PDF atual está neste aparelho → tamanho em bytes. */
   offline = $state.raw<Map<string, number>>(new Map());
+  /** Livros com capa gerada do PDF → URL da imagem. */
+  covers = $state.raw<Map<string, string>>(new Map());
   sync = $state.raw<SyncStatus>(idleStatus());
   usedBytes = $state(0);
   quota = $state.raw<{ usage: number; quota: number } | null>(null);
@@ -36,6 +41,7 @@ class AppState {
       await backend.prepare?.(this.store);
       this.engine = backend.createSync(this.store);
       this.files = new PdfFiles(this.store, backend.pdfFetcher, backend.hasRemotePdf);
+      this.coverMaker = new Covers(this.store, this.files, backend.mode === "demo");
     } catch (e) {
       this.fatal =
         "Não foi possível abrir o armazenamento deste navegador. Se estiver numa janela anônima, abra numa janela normal.";
@@ -64,12 +70,44 @@ class AppState {
         this.books = books;
         this.reviews = new Map(reviews.map((r) => [r.book_id, r]));
         this.offline = await this.files.offlineIndex(books);
+        this.covers = await this.coverMaker.index(books);
         this.usedBytes = await this.files.usedBytes();
         const est = await navigator.storage?.estimate?.();
         this.quota = est?.quota ? { usage: est.usage ?? 0, quota: est.quota } : null;
       } while (this.refreshAgain);
-    })().finally(() => (this.refreshing = null));
+    })().finally(() => {
+      this.refreshing = null;
+      this.scheduleCovers();
+    });
     return this.refreshing;
+  }
+
+  private coversTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Gera em segundo plano as capas que faltam, sem atrapalhar a abertura da estante. */
+  private scheduleCovers() {
+    if (this.coversTimer) return;
+    this.coversTimer = setTimeout(async () => {
+      this.coversTimer = null;
+      try {
+        const todo = await this.coverMaker.missing(this.books, this.offline);
+        if (todo.length) await this.coverMaker.generate(todo, () => void this.refreshCovers());
+      } catch (e) {
+        console.warn(e);
+      }
+    }, 1200);
+  }
+
+  async refreshCovers(): Promise<void> {
+    this.covers = await this.coverMaker.index(this.books);
+  }
+
+  /** O leitor abriu o PDF: aproveita para fazer (ou refazer) a capa. */
+  async coverFromDoc(book: Book, doc: PDFDocumentProxy): Promise<void> {
+    try {
+      if (await this.coverMaker.fromOpenDoc(book, doc)) await this.refreshCovers();
+    } catch (e) {
+      console.warn("capa", e);
+    }
   }
 
   /** Pede ao navegador para não apagar os PDFs guardados quando faltar espaço. */

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { emptyBookData, type Book } from "../../../shared/model";
+  import { app } from "../app.svelte";
   import type { SeriesEntry } from "../shelf";
   import Cover from "./Cover.svelte";
 
@@ -24,9 +25,10 @@
 
 <button class="item stack" type="button" onclick={onopen} aria-label="Coleção {entry.name}: {entry.books.length} volumes, {entry.read} lidos">
   <span class="stack-covers" class:one={entry.books.length === 2}>
-    <Cover book={front} plain />
+    <Cover book={front} plain imageOf={entry.books[0]?.id} />
   </span>
   <span class="below">
+    {#if app.covers.has(entry.books[0]?.id)}<span class="stack-name">{entry.name}</span>{/if}
     <span class="prog" aria-hidden="true"><i style:width="{pct}%"></i></span>
     <span class="row">
       <span>{entry.books.length} volumes</span>

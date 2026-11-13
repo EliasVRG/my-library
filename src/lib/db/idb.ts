@@ -45,10 +45,21 @@ export interface UploadItem {
 
 export type OutboxItem = RecordItem | UploadItem;
 
+/** Capa gerada de uma página do PDF. Só neste aparelho; refeita se o PDF ou a página mudar. */
+export interface CoverImage {
+  book_id: string;
+  /** `pdf_key` do PDF de onde saiu. */
+  key: string;
+  page: number;
+  blob: Blob;
+  made_at: number;
+}
+
 export interface EstanteSchema extends DBSchema {
   books: { key: string; value: Book };
   reviews: { key: string; value: Review };
   pdfs: { key: string; value: PdfFile };
+  covers: { key: string; value: CoverImage };
   outbox: { key: string; value: OutboxItem };
   meta: { key: string; value: unknown };
 }
@@ -56,13 +67,17 @@ export interface EstanteSchema extends DBSchema {
 export type EstanteDB = IDBPDatabase<EstanteSchema>;
 
 export function openEstanteDb(name = "estante"): Promise<EstanteDB> {
-  return openDB<EstanteSchema>(name, 1, {
-    upgrade(db) {
-      db.createObjectStore("books", { keyPath: "id" });
-      db.createObjectStore("reviews", { keyPath: "book_id" });
-      db.createObjectStore("pdfs", { keyPath: "book_id" });
-      db.createObjectStore("outbox", { keyPath: "id" });
-      db.createObjectStore("meta");
+  return openDB<EstanteSchema>(name, 2, {
+    upgrade(db, oldVersion) {
+      if (oldVersion < 1) {
+        db.createObjectStore("books", { keyPath: "id" });
+        db.createObjectStore("reviews", { keyPath: "book_id" });
+        db.createObjectStore("pdfs", { keyPath: "book_id" });
+        db.createObjectStore("outbox", { keyPath: "id" });
+        db.createObjectStore("meta");
+      }
+      // v2: capas geradas do PDF.
+      if (oldVersion < 2) db.createObjectStore("covers", { keyPath: "book_id" });
     },
   });
 }

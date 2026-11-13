@@ -21,6 +21,7 @@ export function rowToBook(r: Row): Book {
     pages: r.pages as number,
     current_page: r.current_page as number,
     bookmarks: (r.bookmarks as string) ?? "",
+    cover_page: (r.cover_page as number | null) ?? null,
     created_at: r.created_at as number,
     updated_at: r.updated_at as number,
     started_at: (r.started_at as number | null) ?? null,

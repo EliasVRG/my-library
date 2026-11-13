@@ -4,7 +4,7 @@
   import { pdfState, type Book } from "../../../shared/model";
   import { app } from "../app.svelte";
   import { PdfError } from "../pdf/files";
-  import { loadPdfjs } from "../pdf/pdfjs";
+  import { loadPdfjs, openPdf } from "../pdf/pdfjs";
   import { parseBookmarks, toggleBookmark } from "../pdf/bookmarks";
   import { appendCitation, citation, cleanQuote, findAll, foldTerm, pageText, type Match } from "../pdf/search";
   import type { Saver } from "../saver.svelte";
@@ -54,22 +54,16 @@
         return;
       }
       message = { text: "Abrindo o PDF…" };
-      const [blob, pdfjs] = await Promise.all([app.files.open(book), loadPdfjs()]);
+      const blob = await app.files.open(book);
       if (my !== token) return;
-      const data = new Uint8Array(await blob.arrayBuffer());
-      const d = await pdfjs.getDocument({
-        data,
-        cMapUrl: "/pdfjs/cmaps/",
-        cMapPacked: true,
-        standardFontDataUrl: "/pdfjs/standard_fonts/",
-        wasmUrl: "/pdfjs/wasm/",
-        iccUrl: "/pdfjs/iccs/",
-      }).promise;
+      const d = await openPdf(new Uint8Array(await blob.arrayBuffer()));
       if (my !== token) {
         void d.loadingTask.destroy();
         return;
       }
       doc = d;
+      // Livro aberto direto da nuvem também ganha capa (e a capa velha é refeita se o PDF mudou).
+      void app.coverFromDoc(book, d);
       if (book.pages !== d.numPages) void app.store.updateBook(book.id, { pages: d.numPages });
       page = Math.min(Math.max(1, book.current_page || 1), d.numPages);
       pageField = String(page);

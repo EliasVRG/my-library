@@ -278,11 +278,12 @@ export async function attachMissingDemoPdfs(store: LocalStore, fetchImpl: typeof
 
 /** Apaga os dados deste navegador (livros, resenhas, PDFs) e recoloca a estante de exemplo. */
 export async function resetDemo(store: LocalStore, fetchImpl: typeof fetch = fetch): Promise<void> {
-  const tx = store.db.transaction(["books", "reviews", "pdfs", "outbox"], "readwrite");
+  const tx = store.db.transaction(["books", "reviews", "pdfs", "covers", "outbox"], "readwrite");
   await Promise.all([
     tx.objectStore("books").clear(),
     tx.objectStore("reviews").clear(),
     tx.objectStore("pdfs").clear(),
+    tx.objectStore("covers").clear(),
     tx.objectStore("outbox").clear(),
   ]);
   await tx.done;

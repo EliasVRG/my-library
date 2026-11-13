@@ -111,6 +111,13 @@
     saver.queue("volume", () => app.store.updateBook(id, { series_index: parseVolume(value) }));
   }
 
+  // Capa: primeira página (padrão), outra página do PDF ou a capa colorida.
+  const coverChoice = $derived(book.cover_page === 0 ? "0" : String(book.cover_page ?? 1));
+  function setCover(v: string) {
+    const n = v === "cur" ? book.current_page : Number(v);
+    void saver.now(() => app.store.updateBook(id, { cover_page: n === 1 ? null : n }));
+  }
+
   function setStatus(s: Status) {
     void saver.now(() => app.store.updateBook(id, { status: s }));
   }
@@ -298,6 +305,17 @@
           Só na nuvem; abre quando houver conexão.
         {/if}
       </p>
+      <label class="f coverpick">
+        Capa
+        <select value={coverChoice} onchange={(e) => setCover(e.currentTarget.value)}>
+          <option value="1">Primeira página do PDF</option>
+          {#if (book.cover_page ?? 1) > 1}<option value={String(book.cover_page)}>Página {book.cover_page}</option>{/if}
+          {#if book.current_page > 1 && book.current_page !== (book.cover_page ?? 1)}
+            <option value="cur">Página onde parei ({book.current_page})</option>
+          {/if}
+          <option value="0">Colorida, sem imagem</option>
+        </select>
+      </label>
       <div class="facts">
         {#if pdf === "ready" && offlineSize !== undefined}
           <button class="btn small" type="button" disabled={offlineBusy} onclick={toggleOffline}>Liberar espaço</button>

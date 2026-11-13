@@ -143,6 +143,16 @@ describe("sincronização", () => {
     expect(bad.status).toBe(400);
   });
 
+  it("página da capa passa pelo merge (0 = colorida) e recusa valor inválido", async () => {
+    const id = uuid();
+    await createBook(id);
+    expect((await changes()).books.find((x) => x.id === id)?.cover_page).toBeNull();
+    await push([{ table: "books", id, fields: { cover_page: 0 }, clock: { cover_page: C(6000) } }]);
+    expect((await changes()).books.find((x) => x.id === id)?.cover_page).toBe(0);
+    const bad = await push([{ table: "books", id, fields: { cover_page: 1.5 }, clock: { cover_page: C(6500) } }]);
+    expect(bad.status).toBe(400);
+  });
+
   it("rejeita lotes grandes demais e dados inválidos", async () => {
     const many = Array.from({ length: 21 }, () => ({ table: "books", id: uuid(), fields: {}, clock: {} }));
     expect((await push(many)).status).toBe(400);

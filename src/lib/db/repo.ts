@@ -40,7 +40,7 @@ export interface StoreOptions {
 }
 
 /** Livros gravados antes de um campo novo existir (ex.: coleção) ganham o valor padrão ao serem lidos. */
-const withDefaults = (b: Book): Book => ({ ...emptyBookData(), ...b, series: b.series ?? "", series_index: b.series_index ?? null, bookmarks: b.bookmarks ?? "" });
+const withDefaults = (b: Book): Book => ({ ...emptyBookData(), ...b, series: b.series ?? "", series_index: b.series_index ?? null, bookmarks: b.bookmarks ?? "", cover_page: b.cover_page ?? null });
 
 export class LocalStore {
   private lastTs = 0;
@@ -228,7 +228,7 @@ export class LocalStore {
    * O servidor apaga o objeto do R2 quando recebe `pdf_key: null`.
    */
   async removePdf(bookId: string): Promise<void> {
-    const tx = this.db.transaction(["books", "outbox", "pdfs"], "readwrite");
+    const tx = this.db.transaction(["books", "outbox", "pdfs", "covers"], "readwrite");
     const book = await tx.objectStore("books").get(bookId);
     if (!book || book.deleted_at != null || !book.pdf_key) {
       await tx.done;
@@ -245,13 +245,14 @@ export class LocalStore {
     });
     await this.enqueueRecord(tx, "books", bookId, fields, clock);
     await tx.objectStore("pdfs").delete(bookId);
+    await tx.objectStore("covers").delete(bookId);
     await tx.objectStore("outbox").delete(uploadItemId(bookId));
     await tx.done;
     this.notify();
   }
 
   async deleteBook(bookId: string): Promise<void> {
-    const tx = this.db.transaction(["books", "reviews", "outbox", "pdfs"], "readwrite");
+    const tx = this.db.transaction(["books", "reviews", "outbox", "pdfs", "covers"], "readwrite");
     const book = await tx.objectStore("books").get(bookId);
     if (!book) {
       await tx.done;
@@ -262,6 +263,7 @@ export class LocalStore {
     await tx.objectStore("books").put({ ...book, deleted_at: now, field_clock: { ...book.field_clock, ...clock }, updated_at: now });
     await tx.objectStore("reviews").delete(bookId);
     await tx.objectStore("pdfs").delete(bookId);
+    await tx.objectStore("covers").delete(bookId);
     await tx.objectStore("outbox").delete(uploadItemId(bookId));
     await tx.objectStore("outbox").delete(recordItemId("reviews", bookId));
     // Só a exclusão importa daqui em diante; o resto pendente seria descartado pelo servidor.

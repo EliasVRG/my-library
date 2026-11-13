@@ -35,6 +35,7 @@ const BOOK_CHECKS: Record<(typeof BOOK_FIELDS)[number], Check> = {
   pdf_size: isInt(0, Number.MAX_SAFE_INTEGER),
   pages: isInt(0, 1_000_000),
   current_page: isInt(1, 1_000_000),
+  cover_page: (v) => v === null || (typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= 1_000_000),
   bookmarks: (v) => typeof v === "string" && v.length <= 8_000 && /^(\d{1,7}(,\d{1,7})*)?$/.test(v),
   started_at: (v) => v === null || (typeof v === "number" && Number.isFinite(v) && v > 0),
   finished_at: (v) => v === null || (typeof v === "number" && Number.isFinite(v) && v > 0),

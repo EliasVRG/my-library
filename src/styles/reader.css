@@ -194,3 +194,4 @@ body:has(.desk) .toast { bottom: calc(max(20px, env(safe-area-inset-bottom, 0px)
 @media (max-width: 560px) {
   .rbar .of { padding-right: 2px; }
 }
+.coverpick { margin-top: 8px; }
