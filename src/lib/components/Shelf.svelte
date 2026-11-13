@@ -95,7 +95,7 @@
 {#if books.length && series}
   <section class="series-view" aria-labelledby="series-h">
     <div class="series-head">
-      <button class="btn icon" type="button" aria-label="Voltar para a estante" onclick={() => (openSeries = null)}>←</button>
+      <button class="btn icon" type="button" aria-label="Sair da coleção" onclick={() => (openSeries = null)}>←</button>
       <div>
         <h2 id="series-h">{series.name}</h2>
         <p class="sub">

@@ -6,6 +6,7 @@
   import { buildStoryData, clipHighlight, hasDebate, HIGHLIGHT_MAX, STORY_MODEL_NAME, storyAlt } from "../story/data";
   import type { StoryModel, StoryTheme } from "../story/palette";
   import { storyPrefs } from "../story/prefs.svelte";
+  import { goalFor } from "../goal.svelte";
   import { renderStory, storyFileName } from "../story/render";
 
   let { book, open = $bindable() }: { book: Book; open: boolean } = $props();
@@ -42,7 +43,7 @@
     if (o) highlight = clipHighlight(o.text);
   }
 
-  const data = $derived(buildStoryData(book, review, app.books, { handle: storyPrefs.handle, highlight }));
+  const data = $derived(buildStoryData(book, review, app.books, { handle: storyPrefs.handle, highlight, goalFor }));
   const debate = $derived(hasDebate(data));
   // Sem nenhum dos três campos, o modelo 2 fica indisponível.
   $effect(() => {

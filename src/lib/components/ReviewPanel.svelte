@@ -111,6 +111,21 @@
     saver.queue("volume", () => app.store.updateBook(id, { series_index: parseVolume(value) }));
   }
 
+  // Datas de leitura (dias no story, estatísticas): preenchidas sozinhas ao mudar a situação, editáveis aqui.
+  const toDay = (ms: number | null) => {
+    if (!ms) return "";
+    const d = new Date(ms);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+  const fromDay = (v: string): number | null => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+    return m ? new Date(+m[1], +m[2] - 1, +m[3], 12).getTime() : null;
+  };
+  const today = toDay(Date.now());
+  function setDate(field: "started_at" | "finished_at", v: string) {
+    void saver.now(() => app.store.updateBook(id, { [field]: fromDay(v) }));
+  }
+
   // Capa: primeira página (padrão), outra página do PDF ou a capa colorida.
   const coverChoice = $derived(book.cover_page === 0 ? "0" : String(book.cover_page ?? 1));
   function setCover(v: string) {
@@ -242,6 +257,23 @@
         autocomplete="off"
       />
     </label>
+    {#if book.status !== "quero" || book.started_at}
+      <label class="f">
+        Comecei em
+        <input type="date" max={today} value={toDay(book.started_at)} onchange={(e) => setDate("started_at", e.currentTarget.value)} />
+      </label>
+      <label class="f">
+        Terminei em
+        <input
+          type="date"
+          max={today}
+          min={toDay(book.started_at) || undefined}
+          value={toDay(book.finished_at)}
+          disabled={book.status !== "lido" && !book.finished_at}
+          onchange={(e) => setDate("finished_at", e.currentTarget.value)}
+        />
+      </label>
+    {/if}
   </div>
 
   <div>

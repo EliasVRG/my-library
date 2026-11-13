@@ -8,6 +8,7 @@
   import DataPanel from "./lib/components/DataPanel.svelte";
   import Desk from "./lib/components/Desk.svelte";
   import Shelf from "./lib/components/Shelf.svelte";
+  import StatsPanel from "./lib/components/StatsPanel.svelte";
   import SyncBadge from "./lib/components/SyncBadge.svelte";
   import UpdatePrompt from "./lib/components/UpdatePrompt.svelte";
 
@@ -21,6 +22,7 @@
 
   let sheet = $state<{ mode: "new" } | { mode: "attach"; book: Book } | null>(null);
   let dataOpen = $state(false);
+  let statsOpen = $state(false);
 
   onMount(() => {
     void app.init();
@@ -80,6 +82,9 @@
       {#if install.canPrompt}
         <button class="btn ghost" type="button" onclick={() => void promptInstall()}>Instalar app</button>
       {/if}
+      {#if app.books.length}
+        <button class="btn ghost" type="button" title="Estatísticas e meta do ano" onclick={() => (statsOpen = true)}>Estatísticas</button>
+      {/if}
       <button class="btn ghost" type="button" title="Dados e backup" onclick={() => (dataOpen = true)}>Dados</button>
       <button class="btn primary" type="button" onclick={() => (sheet = { mode: "new" })} disabled={!app.ready}>+ Adicionar</button>
     </div>
@@ -134,4 +139,5 @@
 
 <AddSheet bind:request={sheet} />
 <DataPanel bind:open={dataOpen} />
+<StatsPanel bind:open={statsOpen} />
 <UpdatePrompt />

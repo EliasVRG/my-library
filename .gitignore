@@ -19,3 +19,7 @@ estante-*.json
 backups/
 
 dist-demo/
+
+# Playwright
+test-results/
+playwright-report/

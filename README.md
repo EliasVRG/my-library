@@ -98,8 +98,9 @@ Other known limitations:
 ## Testing
 
 ```sh
-npm test        # Vitest: 57 tests
-npm run check   # svelte-check + tsc for the Worker
+npm test           # Vitest: 141 tests
+npm run test:e2e   # Playwright: 14 browser tests against the demo build
+npm run check      # svelte-check + tsc for the Worker and the browser tests
 ```
 
 - **`tests/unit/merge.test.ts` (20 tests):** field-level merge, tie-breaking, deletes winning over edits, convergence with a clock running ahead, and validation of incoming changes.
@@ -107,12 +108,16 @@ npm run check   # svelte-check + tsc for the Worker
   - the outbox: collapsing page turns, retry with backoff, edits made during a push, an invalid item not blocking the rest, expired session and denied login;
   - two devices converging;
   - resumable multipart upload.
-- **`tests/unit/demo.test.ts` (5 tests):** the sample data, "Restore sample" and the serverless mode.
-- **`tests/worker/api.test.ts` (14 tests):** Worker routes running in workerd with local D1 and R2. They cover push/changes, CAS, deletes removing the PDF from R2, multipart upload with Range reads, and Access JWT validation (with keys generated in the test).
+- **`tests/unit/demo.test.ts` (8 tests):** the sample data, "Restore sample" and the serverless mode.
+- **`tests/unit/story.test.ts` (47 tests):** story text wrapping and fitting, data selection and the safe area of the three layouts.
+- **Reader, shelf and stats (34 tests):** PDF search and citations, bookmarks, generated covers, collections and categories, reading dates, yearly stats and goal pace.
+- **`tests/worker/api.test.ts` (18 tests):** Worker routes running in workerd with local D1 and R2. They cover push/changes, CAS, deletes removing the PDF from R2, multipart upload with Range reads, and Access JWT validation (with keys generated in the test).
 
 Client tests run in Node with `fake-indexeddb` and the same in-memory server used by the `/demo/sync` page. CI runs `check`, `test` and both builds. The demo build fails if any emitted file contains `/api/` (`scripts/check-demo-bundle.mjs`).
 
-End-to-end browser flows (two devices, offline, upload, delete) were tested with Playwright during development, but those scripts aren't in the repo. `npm run screenshots` walks through the demo, including the sync on the `/demo/sync` page.
+**Browser tests** (`tests/e2e/`, Playwright) run against the demo build, each in a fresh browser with the sample shelf. They attach a PDF generated on the fly (the sample PDFs aren't in git) and cover search, citations, bookmarks, night mode, full screen, covers, collections, categories, the story, stats and the phone layout. CI runs them in a separate job and keeps the report when they fail. Locally they use the installed Google Chrome; set `PW_BUNDLED=1` to use Playwright's Chromium instead.
+
+Two-device sync, offline and upload flows were tested by hand during development. `npm run screenshots` walks through the demo, including the sync on the `/demo/sync` page.
 
 **Bundle size**, measured with `gzip -9 -c <file> | wc -c` on the output of `npm run build` (Vite 8.3.2, 2026-10-05):
 

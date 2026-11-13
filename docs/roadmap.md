@@ -7,9 +7,9 @@ O que falta na Estante, em fases. Cada fase é entregue sozinha, testada, e fica
 | 1 | Texto no PDF: buscar, selecionar, copiar e salvar citação | feita |
 | 2 | Marcadores e modo noturno no leitor | feita |
 | 3 | Capas a partir da primeira página do PDF | feita |
-| 4 | Estatísticas de leitura e meta do ano | a fazer |
-| 5 | Testes de navegador (Playwright) no CI | a fazer |
-| 6 | Leitura de EPUB | a fazer |
+| 4 | Estatísticas de leitura e meta do ano | feita |
+| 5 | Testes de navegador (Playwright) no CI | feita |
+| 6 | Leitura de EPUB | backlog |
 
 ## Fase 1: texto no PDF
 
@@ -40,7 +40,10 @@ O leitor desenha cada página num canvas, então hoje não dá para buscar nem s
 - Os fluxos verificados à mão com Playwright viram testes no repositório: story, modo foco, coleções, busca e citação.
 - Rodam contra o build demo no CI (sem servidor nem Cloudflare).
 
-## Fase 6: EPUB
+## Fase 6: EPUB (backlog)
+
+No backlog: até agora todos os livros são PDF. Retomar se aparecerem EPUBs.
+
 
 - Segundo leitor para EPUB (texto que reflui), com página atual, busca e citação equivalentes às do PDF.
 - É a maior fase: decidir antes a biblioteca (por exemplo, epub.js ou foliate-js) e como contar o progresso.

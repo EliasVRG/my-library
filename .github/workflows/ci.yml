@@ -20,3 +20,22 @@ jobs:
       - run: npm run build
       # Também falha se o bundle da demo citar /api/ ou carregar o motor de sync.
       - run: npm run build:demo
+
+  e2e:
+    # Testes de navegador (Playwright) contra o build demo: estante, leitor, story, estatísticas e celular.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

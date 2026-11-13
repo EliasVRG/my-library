@@ -98,8 +98,9 @@ Outras limitações conhecidas:
 ## Testes
 
 ```sh
-npm test        # Vitest: 57 testes
-npm run check   # svelte-check + tsc do Worker
+npm test           # Vitest: 141 testes
+npm run test:e2e   # Playwright: 14 testes de navegador contra o build demo
+npm run check      # svelte-check + tsc do Worker e dos testes de navegador
 ```
 
 - **`tests/unit/merge.test.ts` (20 testes):** merge por campo, desempate, exclusão vencendo edição, convergência com relógio adiantado e validação das alterações recebidas.
@@ -107,12 +108,16 @@ npm run check   # svelte-check + tsc do Worker
   - fila de saída: agrupamento de páginas viradas, reenvio com backoff, edição feita durante o envio, item inválido que não trava os outros, sessão expirada e login recusado;
   - dois aparelhos convergindo;
   - upload em partes com retomada.
-- **`tests/unit/demo.test.ts` (5 testes):** dados de exemplo, "Restaurar exemplo" e o modo sem servidor.
-- **`tests/worker/api.test.ts` (14 testes):** rotas do Worker rodando no workerd com D1 e R2 locais. Cobrem push/changes, CAS, exclusão apagando o PDF do R2, upload multipart com leitura por Range e validação do JWT do Access (com chaves geradas no teste).
+- **`tests/unit/demo.test.ts` (8 testes):** dados de exemplo, "Restaurar exemplo" e o modo sem servidor.
+- **`tests/unit/story.test.ts` (47 testes):** quebra e ajuste do texto do story, seleção dos dados e a área segura dos três modelos.
+- **Leitor, estante e estatísticas (34 testes):** busca e citações no PDF, marcadores, capas geradas, coleções e categorias, datas de leitura, estatísticas do ano e ritmo da meta.
+- **`tests/worker/api.test.ts` (18 testes):** rotas do Worker rodando no workerd com D1 e R2 locais. Cobrem push/changes, CAS, exclusão apagando o PDF do R2, upload multipart com leitura por Range e validação do JWT do Access (com chaves geradas no teste).
 
 Os testes de cliente rodam em Node com `fake-indexeddb` e o mesmo servidor em memória da página `/demo/sync`. O CI roda `check`, `test` e os dois builds. O build da demo falha se algum arquivo gerado contiver `/api/` (`scripts/check-demo-bundle.mjs`).
 
-Os fluxos completos no navegador (dois aparelhos, offline, upload, exclusão) foram testados com Playwright durante o desenvolvimento, mas esses scripts não estão no repositório. O `npm run screenshots` percorre a demo, inclusive a sincronização da página `/demo/sync`.
+**Testes de navegador** (`tests/e2e/`, Playwright) rodam contra o build demo, cada um num navegador limpo com a estante de exemplo. Eles anexam um PDF gerado na hora (os PDFs de exemplo não estão no git) e cobrem busca, citações, marcadores, modo noturno, tela cheia, capas, coleções, categorias, o story, as estatísticas e o layout de celular. O CI roda esses testes num job separado e guarda o relatório quando falham. Localmente usam o Google Chrome instalado; com `PW_BUNDLED=1`, usam o Chromium do Playwright.
+
+Sincronização entre dois aparelhos, offline e upload foram testados à mão durante o desenvolvimento. O `npm run screenshots` percorre a demo, inclusive a sincronização da página `/demo/sync`.
 
 **Tamanho do bundle**, medido com `gzip -9 -c <arquivo> | wc -c` sobre a saída do `npm run build` (Vite 8.3.2, em 05/10/2026):
 

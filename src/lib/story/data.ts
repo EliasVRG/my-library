@@ -63,8 +63,11 @@ export function readingDays(book: Pick<Book, "started_at" | "finished_at">): num
   return dayNumber(f) - dayNumber(s) + 1;
 }
 
-/** Posição do livro entre os terminados no mesmo ano: "3º livro lido em 2026". */
-export function yearLine(book: Book, books: Book[]): string | null {
+/**
+ * Posição do livro entre os terminados no mesmo ano: "3º livro lido em 2026", ou, com meta
+ * para o ano, "Livro 3 de 12 da meta de 2026" (passou da meta: "14º livro lido em 2026, meta batida").
+ */
+export function yearLine(book: Book, books: Book[], goalFor?: (year: number) => number | null): string | null {
   if (!book.finished_at) return null;
   const year = new Date(book.finished_at).getFullYear();
   const n = books.filter(
@@ -74,6 +77,9 @@ export function yearLine(book: Book, books: Book[]): string | null {
       new Date(b.finished_at).getFullYear() === year &&
       (b.finished_at < book.finished_at! || b.id === book.id),
   ).length;
+  const goal = goalFor?.(year) ?? null;
+  if (goal && n <= goal) return `Livro ${n} de ${goal} da meta de ${year}`;
+  if (goal) return `${n}º livro lido em ${year}, meta batida`;
   return `${n}º livro lido em ${year}`;
 }
 
@@ -97,7 +103,7 @@ export function buildStoryData(
   book: Book,
   review: Review | undefined,
   books: Book[],
-  opts: { handle?: string | null; highlight?: string | null } = {},
+  opts: { handle?: string | null; highlight?: string | null; goalFor?: (year: number) => number | null } = {},
 ): StoryData {
   const options = (Object.keys(HIGHLIGHT_LABEL) as ReviewField[])
     .map((field) => ({ field, label: HIGHLIGHT_LABEL[field], text: filled(review?.[field]) }))
@@ -116,7 +122,7 @@ export function buildStoryData(
     concordo: filled(review?.concordo),
     discordo: filled(review?.discordo),
     outroLado: filled(review?.outro_lado),
-    yearLine: yearLine(book, books),
+    yearLine: yearLine(book, books, opts.goalFor),
     next: nextReading(book, books),
     handle: normalizeHandle(opts.handle),
   };
