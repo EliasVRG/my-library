@@ -4,6 +4,7 @@ import { DEMO_PDFS, attachMissingDemoPdfs, resetDemo, seedDemo } from "../../src
 import { openEstanteDb } from "../../src/lib/db/idb";
 import { LocalStore } from "../../src/lib/db/repo";
 import { PdfFiles } from "../../src/lib/pdf/files";
+import { shelfEntries } from "../../src/lib/shelf";
 
 let n = 0;
 const fresh = async () => LocalStore.open(await openEstanteDb(`demo-${++n}`), Date.now, { localOnly: true });
@@ -17,16 +18,28 @@ const fakeFetch = (async (url: string) => {
 }) as typeof fetch;
 
 describe("estante de exemplo", () => {
-  it("tem 8 livros, as 4 situações, progresso e 3 resenhas", async () => {
+  it("tem 11 livros, as 4 situações, progresso e 3 resenhas", async () => {
     const store = await fresh();
     await seedDemo(store, fakeFetch);
     const books = await store.listBooks();
-    expect(books).toHaveLength(8);
+    expect(books).toHaveLength(11);
     expect(new Set(books.map((b) => b.status))).toEqual(new Set(["lendo", "lido", "quero", "pausado"]));
     expect(books.some((b) => b.status === "lendo" && b.pages > 0 && b.current_page > 1)).toBe(true);
     const reviews = await store.listReviews();
     expect(reviews.filter(hasReview)).toHaveLength(3);
     expect(new Set(books.map((b) => b.category)).size).toBeGreaterThanOrEqual(4);
+  });
+
+  it("tem uma coleção de 3 volumes, que a estante mostra como uma pilha", async () => {
+    const store = await fresh();
+    await seedDemo(store, fakeFetch);
+    const pile = shelfEntries(await store.listBooks()).filter((e) => e.kind === "series");
+    expect(pile).toHaveLength(1);
+    expect(pile[0].kind === "series" && pile[0].books.map((b) => [b.series_index, b.title])).toEqual([
+      [1, "O Guarani"],
+      [2, "Iracema"],
+      [3, "Ubirajara"],
+    ]);
   });
 
   it("os lidos têm início e fim de leitura (story mostra dias e a linha do ano)", async () => {
@@ -72,7 +85,7 @@ describe("estante de exemplo", () => {
     await store.deleteBook(first.id);
     await resetDemo(store, fakeFetch);
     const books = await store.listBooks();
-    expect(books).toHaveLength(8);
+    expect(books).toHaveLength(11);
     expect(books.some((b) => b.title === "Meu livro")).toBe(false);
     expect(await store.db.count("pdfs")).toBe(0);
   });

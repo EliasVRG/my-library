@@ -1,5 +1,5 @@
-// Estante de exemplo do modo demo: 8 livros em domínio público, com situações, progresso e
-// 3 resenhas. Os PDFs (só os de Machado) são arquivos estáticos em /demo/, quando existem.
+// Estante de exemplo do modo demo: 11 livros em domínio público, com situações, progresso,
+// 3 resenhas e uma coleção (a trilogia indianista de Alencar, que aparece empilhada). Os PDFs (só os de Machado) são arquivos estáticos em /demo/, quando existem.
 
 import {
   BOOK_FIELDS,
@@ -153,6 +153,42 @@ const BOOKS: SeedBook[] = [
     category: "Romance",
     status: "quero",
     ago: 71 * DAY,
+  },
+  // Coleção: os três volumes viram uma pilha só na estante, em ordem de publicação.
+  {
+    id: "d0e5a000-0000-4000-8000-000000000009",
+    title: "O Guarani",
+    author: "José de Alencar",
+    category: "Romance",
+    series: "Trilogia indianista",
+    series_index: 1,
+    status: "lido",
+    rating: 4,
+    ago: 45 * DAY,
+    read: { started: 58 * DAY, finished: 45 * DAY },
+  },
+  {
+    id: "d0e5a000-0000-4000-8000-000000000010",
+    title: "Iracema",
+    author: "José de Alencar",
+    category: "Romance",
+    series: "Trilogia indianista",
+    series_index: 2,
+    status: "lendo",
+    pages: 120,
+    current_page: 47,
+    ago: 2 * DAY,
+    read: { started: 6 * DAY },
+  },
+  {
+    id: "d0e5a000-0000-4000-8000-000000000011",
+    title: "Ubirajara",
+    author: "José de Alencar",
+    category: "Romance",
+    series: "Trilogia indianista",
+    series_index: 3,
+    status: "quero",
+    ago: 72 * DAY,
   },
 ];
 
